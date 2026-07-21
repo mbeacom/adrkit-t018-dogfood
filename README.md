@@ -48,9 +48,12 @@ repository, not the ARB queue.)
 | `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Unchanged. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
+| `scripts/verify-managed-queue-issue.sh` | CI-only script (needs `GH_TOKEN`): fetches the issue reported by the `arb-queue.yml` Action step's `issue-number` output, exhaustively re-discovers the managed-issue marker across OPEN+CLOSED issues to rule out duplicates, and delegates content checks to `assert-managed-issue-body.sh`. |
+| `scripts/assert-managed-issue-body.sh` | Pure, network-free assertions against a single issue JSON document (marker position, title, state, tier labels, `0015` full-quorum approvals, absence of a Corpus Findings section). Used by both `verify-managed-queue-issue.sh` (real data) and `test-assert-managed-issue-body.sh` (fixtures). |
+| `scripts/test-assert-managed-issue-body.sh` + `scripts/fixtures/*.json` | Local/CI unit test harness for `assert-managed-issue-body.sh`: one valid fixture and ten fixtures that each violate exactly one invariant, with no GitHub API access required. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -108,10 +111,19 @@ polluting the corpus with generated artifacts.
 ## The managed queue issue (`arb-queue.yml`)
 
 [`arb-queue.yml`](.github/workflows/arb-queue.yml) is a manually-triggered
-(`workflow_dispatch`) workflow that runs the packaged
-`mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`
-Action against `docs/adr`. It requires only `contents: read` (for checkout)
-and `issues: write` — no personal access token or repository secret.
+(`workflow_dispatch`) workflow with two steps:
+
+1. `id: queue` runs the packaged
+   `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`
+   Action against `docs/adr`, producing an `issue-number` output.
+2. A verification step runs `scripts/verify-managed-queue-issue.sh` with
+   `GH_TOKEN: ${{ github.token }}` and
+   `ISSUE_NUMBER: ${{ steps.queue.outputs.issue-number }}`, so every dispatch
+   checks its own output rather than only trusting that the Action exited 0.
+
+The job requires only `contents: read` (for checkout) and `issues: write` —
+no personal access token or repository secret, and `GH_TOKEN` is scoped to
+the verification step only (it is not set at the job or workflow level).
 
 Expected behavior on each run:
 
@@ -120,7 +132,9 @@ Expected behavior on each run:
 - **First run**: no managed issue exists yet, so the Action creates a new
   issue titled **"ADR ARB Queue"** with the marker as the first line of the
   body, followed by the rendered Markdown queue report (currently 3 items:
-  `0013` auto/within-sla, `0014` async/overdue, `0015` arb/due).
+  `0013` auto, `0014` async, `0015` arb — see the corpus table above for
+  their data-driven facts; the exact SLA state per item is date-dependent
+  since this workflow always uses the default `--as-of`, today).
 - **Subsequent runs**: the Action finds the one managed issue by marker and
   updates its body in place (reopening it first, atomically, if it was
   closed). The issue number and title are stable across runs; only the body
@@ -134,3 +148,57 @@ Expected behavior on each run:
 This workflow is **not** run automatically on every push — it is
 `workflow_dispatch`-only, so triggering it (and observing the resulting
 issue) is an explicit, auditable action taken by a repository maintainer.
+
+### Self-verification
+
+The `Verify managed queue issue` step makes every dispatch check its own
+result rather than relying solely on the Action's own exit code. Using only
+`${{ github.token }}`, `scripts/verify-managed-queue-issue.sh`:
+
+1. Confirms the Action's `issue-number` output is a positive integer.
+2. Fetches that issue via `gh api` and confirms it is `open` and titled
+   exactly `ADR ARB Queue`.
+3. Confirms the exact first line of the body is the marker
+   `<!-- adrkit-managed-queue-issue -->`.
+4. Confirms the body's overview table has a row for each of `0013`, `0014`,
+   `0015`, each showing its fixed (date-independent) tier label, a
+   recognized `SlaState` enum value, and — specifically for `0015` — the
+   `3/3` full-quorum approvals recorded in this corpus. It also confirms
+   there is no `## Corpus Findings` section and the summary line reports
+   `0 corpus finding(s)`.
+5. Independently re-runs the exhaustive marker-discovery algorithm across
+   **all** OPEN and CLOSED issues (paginated, pull requests excluded) and
+   asserts exactly one issue carries the marker, and that its number equals
+   the Action's `issue-number` output — catching duplicate-managed-issue
+   regressions that the Action's own single-run exit code could miss.
+6. Prints the issue number, a SHA-256 digest of the body, and its
+   `updatedAt` timestamp to the job log as reviewable evidence — without
+   ever printing, interpolating, or otherwise leaking the token itself.
+
+The content assertions (step 4) are implemented in the pure, network-free
+`scripts/assert-managed-issue-body.sh`, which takes a single issue JSON
+document and never calls the GitHub API. That separation lets the same
+assertion logic run in two contexts:
+
+- **Against real data** — `scripts/verify-managed-queue-issue.sh` calls it
+  with the issue fetched from `gh api` (used in CI).
+- **Against fixtures** — `scripts/test-assert-managed-issue-body.sh` calls
+  it with `scripts/fixtures/good.json` (must pass) and ten
+  `scripts/fixtures/bad-*.json` files, each deliberately violating exactly
+  one invariant (closed state, wrong title, non-integer issue number,
+  marker not on the first line, marker missing, a missing corpus item, an
+  unexpected tier label, partial approvals, an unrecognized SLA state, or a
+  present Corpus Findings section) and expected to fail. Run it locally or
+  in CI with no token and no network:
+
+  ```bash
+  ./scripts/test-assert-managed-issue-body.sh
+  ```
+
+  This runs automatically in [`queue-validation.yml`](.github/workflows/queue-validation.yml)
+  on every pull request, push to `main`, and `workflow_dispatch`.
+
+As with everything else in this repository, `verify-managed-queue-issue.sh`
+is technical, owner-run evidence that the queue kernel/CLI/Action behave
+correctly — it is not, and does not claim to be, `specs/007-arb-queue`
+SC-004/T048 evidence. See the status boundary above.
