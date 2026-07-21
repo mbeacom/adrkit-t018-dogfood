@@ -43,7 +43,18 @@ if (!reportPath) {
   process.exit(2);
 }
 
-const report: QueueReport = JSON.parse(readFileSync(reportPath, "utf8"));
+let report: QueueReport;
+try {
+  report = JSON.parse(readFileSync(reportPath, "utf8"));
+} catch (error) {
+  console.error(`FAIL: could not read or parse "${reportPath}" as JSON: ${(error as Error).message}`);
+  process.exit(1);
+}
+
+if (report === null || typeof report !== "object") {
+  console.error(`FAIL: parsed report is not an object (got ${JSON.stringify(report)})`);
+  process.exit(1);
+}
 
 let failures = 0;
 
@@ -66,7 +77,12 @@ assert(report.totalCorpusFindings === 0, `zero corpus findings (got ${report.tot
 assert(Array.isArray(report.corpusFindings) && report.corpusFindings.length === 0, "corpusFindings array is empty");
 assert(report.totalItems >= 3, `at least 3 proposed items in the queue (got ${report.totalItems})`);
 
-const items = report.items ?? [];
+const items = Array.isArray(report.items) ? report.items : [];
+assert(
+  Array.isArray(report.items) && report.items.length === report.totalItems,
+  `report.items is an array whose length matches totalItems (got ${items.length} items, totalItems ${report.totalItems})`,
+);
+
 const tiersPresent = new Set(items.map((item) => item.tier));
 
 for (const tier of ["auto", "async", "arb"] as const) {

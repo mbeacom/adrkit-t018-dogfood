@@ -50,7 +50,7 @@ if [[ "${INSTALLED_BUN_VERSION}" != "${EXPECTED_BUN_VERSION}" ]]; then
 fi
 
 WORKDIR="$(mktemp -d)"
-cleanup() { rm -rf "${WORKDIR}"; }
+cleanup() { [[ -d "${WORKDIR:-}" ]] && rm -rf "${WORKDIR}"; }
 trap cleanup EXIT
 
 echo "==> Cloning adrkit and checking out pinned commit ${ADRKIT_REF}"
