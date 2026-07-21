@@ -2,7 +2,7 @@
 # Validates the Phase 6 ARB operations queue behavior of this repository's
 # docs/adr corpus against a pinned adrkit commit.
 #
-# This script is deliberately NOT a substitute for spec/007-arb-queue SC-004 /
+# This script is deliberately NOT a substitute for specs/007-arb-queue SC-004 /
 # T048: it runs from an owner-controlled clone of adrkit against an
 # owner-controlled corpus, so it validates technical behavior only. See
 # README.md ("Status boundary — this is NOT SC-004 evidence") for the full
@@ -53,9 +53,12 @@ WORKDIR="$(mktemp -d)"
 cleanup() { [[ -d "${WORKDIR:-}" ]] && rm -rf "${WORKDIR}"; }
 trap cleanup EXIT
 
-echo "==> Cloning adrkit and checking out pinned commit ${ADRKIT_REF}"
-git clone --quiet "${ADRKIT_REPO}" "${WORKDIR}/adrkit"
-git -C "${WORKDIR}/adrkit" checkout --quiet "${ADRKIT_REF}"
+echo "==> Fetching adrkit at pinned commit ${ADRKIT_REF} (shallow, no full clone)"
+mkdir -p "${WORKDIR}/adrkit"
+git -C "${WORKDIR}/adrkit" init --quiet
+git -C "${WORKDIR}/adrkit" remote add origin "${ADRKIT_REPO}"
+git -C "${WORKDIR}/adrkit" fetch --quiet --depth 1 origin "${ADRKIT_REF}"
+git -C "${WORKDIR}/adrkit" checkout --quiet FETCH_HEAD
 RESOLVED_SHA="$(git -C "${WORKDIR}/adrkit" rev-parse HEAD)"
 if [[ "${RESOLVED_SHA}" != "${ADRKIT_REF}" ]]; then
   echo "error: resolved commit ${RESOLVED_SHA} does not match pinned ref ${ADRKIT_REF}" >&2
