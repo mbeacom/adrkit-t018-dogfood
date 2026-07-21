@@ -95,12 +95,17 @@ FIRST_LINE="$(jq -r '(.body // "") | split("\r\n")[0] | split("\n")[0] | split("
 if [[ "${FIRST_LINE}" == "${MARKER}" ]]; then st=0; else st=1; fi
 check "${st}" "body's exact first line is the marker (got '${FIRST_LINE}')"
 
-# Fixed (date-independent) tier expectations from the docs/adr/0013-0015 corpus.
-declare -A EXPECTED_TIER_LABEL=(
-  ["0013"]="auto (expedited routing; human acceptance required)"
-  ["0014"]="async (asynchronous human review)"
-  ["0015"]="arb (ARB human review)"
-)
+# Fixed (date-independent) tier expectations from the docs/adr/0013-0015
+# corpus. A `case` helper (not `declare -A`) so this also runs correctly
+# under the Bash 3.2 that macOS ships as its default system `bash`, which
+# has no associative-array support.
+expected_tier_label() {
+  case "$1" in
+    "0013") echo "auto (expedited routing; human acceptance required)" ;;
+    "0014") echo "async (asynchronous human review)" ;;
+    "0015") echo "arb (ARB human review)" ;;
+  esac
+}
 
 for id in 0013 0014 0015; do
   ROW="$(grep -E "^\| [0-9]+ \| \`${id}\` \|" "${BODY_FILE}" || true)"
@@ -110,16 +115,17 @@ for id in 0013 0014 0015; do
   fi
   check 0 "overview table has a row for \`${id}\`"
 
-  TIER_CELL="$(awk -F'|' '{gsub(/^ +| +$/,"",$5); print $5}' <<< "${ROW}")"
-  if [[ "${TIER_CELL}" == "${EXPECTED_TIER_LABEL[${id}]}" ]]; then st=0; else st=1; fi
-  check "${st}" "\`${id}\` Tier column is '${EXPECTED_TIER_LABEL[${id}]}' (got '${TIER_CELL}')"
+  EXPECTED_LABEL="$(expected_tier_label "${id}")"
+  TIER_CELL="$(awk -F'|' '{sub(/^ +/,"",$5); sub(/ +$/,"",$5); print $5}' <<< "${ROW}")"
+  if [[ "${TIER_CELL}" == "${EXPECTED_LABEL}" ]]; then st=0; else st=1; fi
+  check "${st}" "\`${id}\` Tier column is '${EXPECTED_LABEL}' (got '${TIER_CELL}')"
 
-  SLA_CELL="$(awk -F'|' '{gsub(/^ +| +$/,"",$6); print $6}' <<< "${ROW}")"
+  SLA_CELL="$(awk -F'|' '{sub(/^ +/,"",$6); sub(/ +$/,"",$6); print $6}' <<< "${ROW}")"
   if [[ " ${VALID_SLA_STATES} " == *" ${SLA_CELL} "* ]]; then st=0; else st=1; fi
   check "${st}" "\`${id}\` SLA State column ('${SLA_CELL}') is a recognized SlaState value"
 
   if [[ "${id}" == "0015" ]]; then
-    APPROVALS_CELL="$(awk -F'|' '{gsub(/^ +| +$/,"",$8); print $8}' <<< "${ROW}")"
+    APPROVALS_CELL="$(awk -F'|' '{sub(/^ +/,"",$8); sub(/ +$/,"",$8); print $8}' <<< "${ROW}")"
     if [[ "${APPROVALS_CELL}" == "3/3" ]]; then st=0; else st=1; fi
     check "${st}" "\`0015\` Approvals column is '3/3' (full quorum met; got '${APPROVALS_CELL}')"
   fi

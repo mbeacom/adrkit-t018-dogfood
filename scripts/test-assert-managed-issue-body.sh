@@ -27,13 +27,14 @@ report() {
 }
 
 echo "==> good.json must pass"
-if "${ASSERT_SCRIPT}" "${FIXTURES_DIR}/good.json" > /tmp/assert-managed-issue-good.$$.log 2>&1; then
+GOOD_LOG="$(mktemp)"
+if "${ASSERT_SCRIPT}" "${FIXTURES_DIR}/good.json" > "${GOOD_LOG}" 2>&1; then
   report 0 "good.json is accepted"
 else
-  report 1 "good.json is accepted (unexpected failure; see /tmp/assert-managed-issue-good.$$.log)"
-  cat /tmp/assert-managed-issue-good.$$.log >&2
+  report 1 "good.json is accepted (unexpected failure; see below)"
+  cat "${GOOD_LOG}" >&2
 fi
-rm -f /tmp/assert-managed-issue-good.$$.log
+rm -f "${GOOD_LOG}"
 
 echo ""
 echo "==> every bad-*.json fixture must fail"
