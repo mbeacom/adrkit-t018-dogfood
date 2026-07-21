@@ -85,8 +85,13 @@ check "${st}" "issue state is 'open' (got '${STATE}')"
 if [[ "${TITLE}" == "${EXPECTED_TITLE}" ]]; then st=0; else st=1; fi
 check "${st}" "issue title is exactly '${EXPECTED_TITLE}' (got '${TITLE}')"
 
-# First line per adrkit's own marker-discovery rule: split on \r\n, \n, or \r.
-FIRST_LINE="$(awk 'BEGIN{RS="\r\n|\n|\r"} {print; exit}' "${BODY_FILE}")"
+# First line per adrkit's own marker-discovery rule: split on \r\n, \n, or
+# \r. Extracted via jq (already required by this script), NOT awk with a
+# regex RS -- mawk (the default `awk` on many ubuntu-latest images) does
+# not reliably support multi-character/regex record separators, which
+# could otherwise silently treat the whole body as "the first line" and
+# both fail this check and dump the entire body into CI logs.
+FIRST_LINE="$(jq -r '(.body // "") | split("\r\n")[0] | split("\n")[0] | split("\r")[0]' "${ISSUE_JSON}")"
 if [[ "${FIRST_LINE}" == "${MARKER}" ]]; then st=0; else st=1; fi
 check "${st}" "body's exact first line is the marker (got '${FIRST_LINE}')"
 
