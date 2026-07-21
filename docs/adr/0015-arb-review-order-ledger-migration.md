@@ -18,7 +18,7 @@ review:
   queuedAt: "2026-07-10T00:00:00Z"
   slaDays: 11
   quorum: 3
-  approvals: ["@mbeacom", "@octocat"]
+  approvals: ["@mbeacom", "@octocat", "team:arb"]
 ---
 
 # Migrate the order settlement ledger to an append-only event store
@@ -33,5 +33,11 @@ human review rather than the `auto` or `async` lanes.
 This record was queued on `2026-07-10` with an 11-day SLA, placing its
 computed deadline on `2026-07-21` — the fixed `--as-of` date used for the
 dogfood queue evidence in this repository, so the record is deterministically
-`due` on that run. Two of the three-decider quorum have approved; ARB review
-is still pending the third decision.
+`due` on that run. All three of the three-decider quorum have now approved
+(`quorum` is met), but this record's `status` remains `proposed` and its
+`review.decidedAt` is intentionally unset: reaching quorum in the ARB queue
+is evidence that a decision is ready to be made, not the decision itself.
+Recording an explicit `decidedAt` and transitioning `status` to `accepted`
+or `rejected` is deferred to a separate, dedicated decision/status PR so
+that "quorum reached" and "decision recorded" remain two distinct,
+auditable events in this dogfood corpus.
