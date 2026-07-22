@@ -306,19 +306,34 @@ the existing `test-assert-managed-issue-body.sh`.
 
 | Field | Expected | Observed |
 |-------|----------|----------|
-| Pinned adrkit ref | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` |
+| Pinned adrkit ref | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (confirmed via the run's own action-download log line) |
 | Fixture | `fixtures/fail-closed-invalid-corpus-dir` (plain file, not a directory) | (unchanged) |
-| `queue` step outcome | `failure` | _see run below_ |
-| `queue` step `issue-number` output | (empty/unset) | _see run below_ |
-| Issue mutation | zero (before/after snapshot hashes equal) | _see run below_ |
-| Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | _see run below_ |
+| `queue` step outcome | `failure` | `failure` |
+| `queue` step `issue-number` output | (empty/unset) | (empty/unset) |
+| Issue mutation | zero (before/after snapshot hashes equal) | zero — hashes equal, issue count unchanged at 1 |
+| Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | `success` |
 
-**Live run:** `<run-id>` — `<run-url>` — commit `<sha>` — conclusion:
-`<conclusion>`. Before/after snapshot SHA-256 (canonicalized):
-`<before-sha256>` / `<after-sha256>` (equal ⇒ zero mutation across
-`<issue-count>` issue(s)). Runner tool versions are recorded in the run's
-own job log (`actions/checkout@v4`, `actions/upload-artifact@v4`, Node
-version bundled with `node24` per `packages/ci/queue/action.yml`).
+**Live run:** `29920390292` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/29920390292>
+— commit `2d7f6063b1d0d93f453138cf24a2bcd81aa287a6` (the `main` merge
+commit for PR #6) — conclusion: `success`. The `queue` step's own error
+output was:
+
+```
+##[error]adrkit queue: could not load the ADR corpus at 'fixtures/fail-closed-invalid-corpus-dir': ENOTDIR: not a directory, scandir '/home/runner/work/adrkit-t018-dogfood/adrkit-t018-dogfood/fixtures/fail-closed-invalid-corpus-dir'
+```
+
+Before/after snapshot SHA-256 (canonicalized):
+`9b15bda8a202ec4bb9539f920ceb47f96b2844a4b46232c2a3a4465e579802d9` for
+both before and after (equal ⇒ zero mutation across `1` issue(s), the
+same `#3` managed queue issue, `updatedAt` unchanged). Uploaded
+evidence artifact SHA-256:
+`15e3c042fbda394a579de560756d51ea1ca075031df5d1b458ffd2f8006cb966`.
+Runner: `ubuntu-24.04` (image `20260714.240.1`, Actions runner
+`2.336.0`); `GITHUB_TOKEN` permissions were exactly `contents: read`,
+`issues: write`, `metadata: read` with secret source `Actions` (no PAT
+or repository/organization secret involved). Action versions:
+`actions/checkout@v4`, `actions/upload-artifact@v4`.
 
 **Limitations:** this demonstrates the Action's own fail-closed behavior on
 one deterministic invalid-input class (an unreadable `dir`), using only the
