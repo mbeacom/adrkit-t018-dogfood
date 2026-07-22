@@ -1,0 +1,16 @@
+[
+  {
+    "number": 3,
+    "state": "open",
+    "title": "ADR ARB Queue",
+    "updatedAt": "2026-07-21T14:00:00Z",
+    "bodySha256": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbee"
+  },
+  {
+    "number": 1,
+    "state": "closed",
+    "title": "Some unrelated issue",
+    "updatedAt": "2026-06-01T00:00:00Z",
+    "bodySha256": "0000000000000000000000000000000000000000000000000000000000000"
+  }
+]
