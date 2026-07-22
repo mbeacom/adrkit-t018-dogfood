@@ -1,0 +1,75 @@
+name: ADR ARB queue fail-closed (invalid input, no write)
+
+# Manually-triggered demonstration that the pinned queue Action fails closed
+# on a real, deterministic invalid-input error -- and mechanically proves it
+# wrote zero issues while doing so. This is deliberately separate from
+# arb-queue.yml (the valid-corpus managed-issue workflow): it targets a
+# checked-in invalid fixture (fixtures/fail-closed-invalid-corpus-dir, a
+# plain file rather than a directory) so `dir`'s readdir() throws ENOTDIR
+# inside adrkit's corpus loader, before the Action ever constructs a GitHub
+# client (see queue-action-entrypoint.ts in adrkit). Uses only the default
+# GITHUB_TOKEN -- no PAT, no repository secret.
+#
+# See README.md ("Fail-closed evidence (invalid input, no write)") for the
+# full write-up, expected-vs-observed template, and the most recent live
+# run's evidence.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fail-closed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Snapshot all issues before the Action runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/snapshot-issues.sh /tmp/issues-before.json
+
+      - name: Run the pinned queue Action against a deliberately invalid corpus dir (expected to fail before any issue write)
+        id: queue
+        continue-on-error: true
+        uses: mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3
+        with:
+          dir: fixtures/fail-closed-invalid-corpus-dir
+
+      - name: Snapshot all issues after the Action runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/snapshot-issues.sh /tmp/issues-after.json
+
+      - name: Assert the Action step failed as expected, before producing an issue-number output
+        run: |
+          echo "queue step outcome:              ${{ steps.queue.outcome }}"
+          echo "queue step conclusion:            ${{ steps.queue.conclusion }}"
+          echo "queue step issue-number output:   ${{ steps.queue.outputs.issue-number }}"
+
+          if [[ "${{ steps.queue.outcome }}" != "failure" ]]; then
+            echo "FAIL: expected the queue Action step to fail (outcome=failure) against the invalid corpus fixture, but outcome was '${{ steps.queue.outcome }}'." >&2
+            exit 1
+          fi
+          echo "ok:   queue Action step failed as expected (fail-closed on invalid dir input, before any GitHub write)."
+
+          if [[ -n "${{ steps.queue.outputs.issue-number }}" ]]; then
+            echo "FAIL: expected no issue-number output (the Action should fail before writing/outputting anything), but got '${{ steps.queue.outputs.issue-number }}'." >&2
+            exit 1
+          fi
+          echo "ok:   no issue-number output was produced."
+
+      - name: Assert zero issue mutation (no create/close/reopen/body-change) across all OPEN+CLOSED issues
+        run: ./scripts/assert-no-issue-mutation.sh /tmp/issues-before.json /tmp/issues-after.json
+
+      - name: Upload before/after snapshots as durable, sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fail-closed-no-write-evidence
+          path: |
+            /tmp/issues-before.json
+            /tmp/issues-after.json
+          retention-days: 90

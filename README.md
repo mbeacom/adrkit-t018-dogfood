@@ -46,14 +46,19 @@ repository, not the ARB queue.)
 | `docs/adr/0001`–`0012` | Phase 3 T018 corpus: `accepted` records governing `src/payments/**` and other component boundaries. Preserved as-is. |
 | `docs/adr/0013`–`0015` | Phase 6 ARB queue corpus: `proposed` records exercising the `auto`, `async`, and `arb` routing tiers with deterministic SLA state, approvals, objections, and quorum. |
 | `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. |
+| `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Unchanged. |
-| `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`. |
+| `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
 | `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
 | `scripts/verify-managed-queue-issue.sh` | CI-only script (needs `GH_TOKEN`): fetches the issue reported by the `arb-queue.yml` Action step's `issue-number` output, exhaustively re-discovers the managed-issue marker across OPEN+CLOSED issues to rule out duplicates, and delegates content checks to `assert-managed-issue-body.sh`. |
 | `scripts/assert-managed-issue-body.sh` | Pure, network-free assertions against a single issue JSON document (marker position, title, state, tier labels, `0015` full-quorum approvals, absence of a Corpus Findings section). Used by both `verify-managed-queue-issue.sh` (real data) and `test-assert-managed-issue-body.sh` (fixtures). |
-| `scripts/test-assert-managed-issue-body.sh` + `scripts/fixtures/*.json` | Local/CI unit test harness for `assert-managed-issue-body.sh`: one valid fixture and ten fixtures that each violate exactly one invariant, with no GitHub API access required. |
+| `scripts/test-assert-managed-issue-body.sh` + `scripts/fixtures/{good,bad-*}.json` | Local/CI unit test harness for `assert-managed-issue-body.sh`: one valid fixture and ten fixtures that each violate exactly one invariant, with no GitHub API access required. |
+| `scripts/snapshot-issues.sh` | CI-only script (needs `GH_TOKEN`): snapshots every issue (OPEN+CLOSED, excluding pull requests) as `{number, state, title, updatedAt, bodySha256}`. Run once before and once after the fail-closed Action dispatch. |
+| `scripts/assert-no-issue-mutation.sh` | Pure, network-free comparison of two snapshots produced by `snapshot-issues.sh`; fails unless they are byte-for-byte identical after canonicalization. Used by both `arb-queue-fail-closed.yml` (real data) and `test-assert-no-issue-mutation.sh` (fixtures). |
+| `scripts/test-assert-no-issue-mutation.sh` + `scripts/fixtures/mutation-*.json` | Local/CI unit test harness for `assert-no-issue-mutation.sh`: an identical (reordered) pair that must pass, and four pairs that each violate exactly one invariant (body changed, state changed, issue added, issue removed), with no GitHub API access required. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -202,3 +207,123 @@ As with everything else in this repository, `verify-managed-queue-issue.sh`
 is technical, owner-run evidence that the queue kernel/CLI/Action behave
 correctly — it is not, and does not claim to be, `specs/007-arb-queue`
 SC-004/T048 evidence. See the status boundary above.
+
+## Fail-closed evidence (invalid input, no write)
+
+Every other workflow in this repository exercises the queue Action against a
+**valid** corpus. This section is the missing complement: proof that the
+real, packaged, pinned `mbeacom/adrkit/packages/ci/queue` Action **fails
+closed** on a deterministic invalid input — a real consumer-facing GitHub
+Action run, not a local script or fixture-only CI check — and that the
+failure happens strictly before any GitHub write.
+
+### Why a bad `dir` input, specifically
+
+Reading adrkit's own source at the pinned commit
+(`packages/ci/src/queue-action-entrypoint.ts`) shows two very different
+failure boundaries:
+
+- **Corpus *content* errors** (e.g. a malformed ADR's frontmatter) are
+  collected as `Finding`s, not thrown. `publishQueueReport` in
+  `packages/ci/src/queue-issue.ts` **writes the managed issue first, then
+  fails** if there are error-severity findings ("The write always happens
+  first so the managed issue reflects the current corpus health."). This is
+  the `arb-queue.yml` failure path described in its own docs above — it is
+  a real failure mode, but it is not a *no-write* failure mode, so it
+  cannot serve as fail-closed-with-zero-writes evidence.
+- **Corpus *load* errors** — the `dir` input cannot even be read as a
+  directory — are thrown by `expandRecordInputs`/`discoverAdrFiles` and
+  caught by the entrypoint's outermost `try`/`catch`, which calls
+  `core.setFailed(...)` and returns **before `getOctokit` is ever
+  constructed**: "A corpus-load failure fails the run BEFORE any GitHub
+  client is constructed." No Octokit client means no possible GitHub API
+  call of any kind, by construction — not just by convention.
+
+[`fixtures/fail-closed-invalid-corpus-dir`](fixtures/fail-closed-invalid-corpus-dir)
+is a plain regular **file**, not a directory. Passing its path as the
+Action's `dir` input makes Node's `readdir()` throw `ENOTDIR` synchronously
+inside `lintCorpus`, hitting exactly that first boundary. This was verified
+directly against the pinned commit's compiled output before wiring up the
+workflow:
+
+```
+$ env INPUT_DIR="/tmp/fail-closed-test/fixture-file" INPUT_TOKEN="fake-token-not-used" \
+    GITHUB_REPOSITORY="octocat/hello-world" GITHUB_WORKSPACE="$(pwd)" \
+    node packages/ci/dist/queue-action.js; echo "EXIT CODE: $?"
+::error::adrkit queue: could not load the ADR corpus at '/tmp/fail-closed-test/fixture-file': ENOTDIR: not a directory, scandir '/tmp/fail-closed-test/fixture-file'
+EXIT CODE: 1
+```
+
+The Action exits non-zero immediately (no network round trip's worth of
+latency) with a message tied precisely to the corpus-load `catch` block,
+confirming the failure occurs at that boundary and not, e.g., from an
+auth/network error further down.
+
+### The workflow: `arb-queue-fail-closed.yml`
+
+[`arb-queue-fail-closed.yml`](.github/workflows/arb-queue-fail-closed.yml)
+is a manually-triggered (`workflow_dispatch`) workflow, using only the
+default `${{ github.token }}` (no PAT, no repository secret) with the same
+least-privilege permissions as `arb-queue.yml` (`contents: read`,
+`issues: write` — `issues: write` is granted so that if the Action ever
+*did* reach the point of attempting a write, it would not be blocked by a
+missing scope; that would make any observed failure ambiguous between
+"invalid input" and "insufficient permission"):
+
+1. **Snapshot before** — `scripts/snapshot-issues.sh` records every issue in
+   the repository (OPEN + CLOSED, pull requests excluded) as
+   `{number, state, title, updatedAt, bodySha256}`.
+2. **Run the Action** (`continue-on-error: true`) against
+   `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
+   `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`
+   used by `arb-queue.yml`, pointed at the invalid fixture instead of
+   `docs/adr`.
+3. **Snapshot after** — the same script, run again.
+4. **Assert the step failed as expected** — the workflow step itself fails
+   unless `steps.queue.outcome == 'failure'` (so this workflow only reports
+   success when the Action's failure actually occurred; if the Action were
+   ever fixed to no longer reject this input, this workflow would start
+   failing rather than silently passing) — and additionally asserts the
+   Action produced **no** `issue-number` output at all.
+5. **Assert zero mutation** — `scripts/assert-no-issue-mutation.sh` compares
+   the before/after snapshots and fails unless every issue's
+   number/state/title/updatedAt/bodySha256 is byte-for-byte identical (not
+   merely "the count didn't change"). This is deliberately scoped over
+   **all** issues in the repository, not only the known managed queue issue
+   (`#3` as of this writing), so it also rules out an unrelated issue being
+   created, closed, reopened, or edited.
+6. Both sanitized snapshots (no raw secrets/tokens; the body is a SHA-256
+   digest, never the literal text) are uploaded as a workflow artifact for
+   durable, reviewable evidence.
+
+Both new scripts have a pure, network-free local/CI unit test harness with
+synthetic fixtures — `scripts/test-assert-no-issue-mutation.sh` against
+`scripts/fixtures/mutation-*.json` — run automatically in
+[`queue-validation.yml`](.github/workflows/queue-validation.yml) alongside
+the existing `test-assert-managed-issue-body.sh`.
+
+### Expected vs. observed (most recent live dispatch)
+
+| Field | Expected | Observed |
+|-------|----------|----------|
+| Pinned adrkit ref | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` |
+| Fixture | `fixtures/fail-closed-invalid-corpus-dir` (plain file, not a directory) | (unchanged) |
+| `queue` step outcome | `failure` | _see run below_ |
+| `queue` step `issue-number` output | (empty/unset) | _see run below_ |
+| Issue mutation | zero (before/after snapshot hashes equal) | _see run below_ |
+| Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | _see run below_ |
+
+**Live run:** `<run-id>` — `<run-url>` — commit `<sha>` — conclusion:
+`<conclusion>`. Before/after snapshot SHA-256 (canonicalized):
+`<before-sha256>` / `<after-sha256>` (equal ⇒ zero mutation across
+`<issue-count>` issue(s)). Runner tool versions are recorded in the run's
+own job log (`actions/checkout@v4`, `actions/upload-artifact@v4`, Node
+version bundled with `node24` per `packages/ci/queue/action.yml`).
+
+**Limitations:** this demonstrates the Action's own fail-closed behavior on
+one deterministic invalid-input class (an unreadable `dir`), using only the
+default `GITHUB_TOKEN`, in this maintainer-owned repository. Like the rest
+of this repository (see the status boundary above), it is **not**
+`specs/007-arb-queue` SC-004/T048 evidence — it does not involve an
+independent, non-maintainer-owned team — and it does not attempt to
+enumerate every possible invalid-input class the Action might encounter.

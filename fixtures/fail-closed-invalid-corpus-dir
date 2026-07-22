@@ -1,0 +1,18 @@
+This is a plain regular FILE, not a directory.
+
+It exists only so that .github/workflows/arb-queue-fail-closed.yml can pass
+its path as the `dir` input to `mbeacom/adrkit/packages/ci/queue@<pin>`.
+adrkit's corpus loader calls Node's `readdir()` on whatever path is given for
+`dir`; calling `readdir()` on a file (rather than a directory) throws
+`ENOTDIR` synchronously, before adrkit's queue Action constructs a GitHub
+client or makes any API call (see queue-action-entrypoint.ts in adrkit:
+"Corpus load is the first boundary; if it throws, fail before touching
+GitHub."). That makes this fixture a deterministic, real, invalid-input
+trigger for the Action's fail-closed path with a mechanically provable
+zero-write guarantee -- not a corpus-content/schema error, which adrkit
+instead reports as findings inside an issue body it still writes.
+
+The content of this file is never read by adrkit: only the path's existence
+as a non-directory matters. Do not turn this into a directory or delete it
+without updating .github/workflows/arb-queue-fail-closed.yml and
+README.md accordingly.

@@ -21,3 +21,5 @@ jobs:
         run: ./scripts/validate-queue.sh
       - name: Unit-test the managed-issue assertion parser (fixtures only, no network)
         run: ./scripts/test-assert-managed-issue-body.sh
+      - name: Unit-test the no-issue-mutation comparison (fixtures only, no network)
+        run: ./scripts/test-assert-no-issue-mutation.sh
