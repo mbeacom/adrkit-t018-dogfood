@@ -877,16 +877,20 @@ reproductions the same way #39–#42 were.
    | Source `* Deciders:` | Imported | Findings |
    |---|---|---|
    | `Jane Smith, Bob Jones` | `[]` | `warn import-deciders-unmapped` naming both, **plus** `info import-incomplete` |
+   | `[list everyone involved in the decision]` | `[]` | `warn import-deciders-unmapped` naming the placeholder, **plus** `info import-incomplete` |
    | *(no `* Deciders:` line)* | `[]` | `info import-incomplete` only |
    | `@mbeacom, Jane Smith` | `["@mbeacom"]` | `warn import-deciders-unmapped` naming `Jane Smith` only; no `import-incomplete` |
    | `@mbeacom, team:platform-eng` | both | none |
 
-   The first two rows are the ones that previously collapsed together. Pairing
-   the two findings on row 1 is right rather than redundant: the record really
-   does have no deciders, so the backfill advice still applies, *and* the
-   source named values worth fixing. A frontmatter `deciders:` list still wins
-   over the bullet, and when it does the bullet is ignored wholesale including
-   its warning — verified: frontmatter `["@octocat"]` against a bullet reading
+   The first three rows all previously collapsed into the third's output. Each
+   was re-run against `ffdde26`; the placeholder row is included because it
+   was part of the originally reported problem, so leaving its resolution
+   unrecorded would have made this account incomplete. Pairing the two
+   findings is right rather than redundant: the record really does have no
+   deciders, so the backfill advice still applies, *and* the source named
+   values worth fixing. A frontmatter `deciders:` list still wins over the
+   bullet, and when it does the bullet is ignored wholesale including its
+   warning — verified: frontmatter `["@octocat"]` against a bullet reading
    `Jane Smith` imports `["@octocat"]` silently. That is a deliberate
    precedence choice, not a suppressed signal: the field was satisfied, so
    nothing was lost.
