@@ -11,9 +11,14 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   (`docs/adr/0013`–`0015`) spanning all three ARB routing tiers.
 - **Full CLI + MCP surface dogfood (2026-07-25)** — a one-off, wider run
   covering every `adr` subcommand and the `@adrkit/mcp` server, performed at
-  the time of the `896391cc` repin. See
+  the time of the `896391cc` repin. It found four defects, all of which were
+  filed upstream and have since been fixed. See
   [Full CLI + MCP surface dogfood](#full-cli--mcp-surface-dogfood-2026-07-25)
-  for what works and the four defects it found.
+  for what works and the resolved defect record.
+- **Re-validation and repin to `bbe63e01` (2026-07-25)** — the four defects
+  above were re-checked from the outside against the fixed commit before this
+  repository was repinned to it. See
+  [Re-validation against `bbe63e01`](#re-validation-against-bbe63e01-2026-07-25).
 
 ## ⚠️ Status boundary — this is NOT SC-004 evidence
 
@@ -32,21 +37,52 @@ All adrkit usage in this repository — the validation script and the
 GitHub Actions workflows — is pinned to an exact 40-character adrkit commit:
 
 ```
-896391cc385798f7f08c5694f70acaf0342789e9
+bbe63e017274f173dbb40eeaceccd17df346b32b
 ```
 
-This is the tip of adrkit `main` as of 2026-07-25. It supersedes the previous
-pin `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (the `specs/007-arb-queue`
-merge commit). The repin was made to dogfood the current tip of adrkit rather
-than a now-historical commit.
+This is the tip of adrkit `main` as of 2026-07-25: the squash-merge of PR
+[mbeacom/adrkit#45](https://github.com/mbeacom/adrkit/pull/45), which closes
+the four defects ([#39](https://github.com/mbeacom/adrkit/issues/39)–[#42](https://github.com/mbeacom/adrkit/issues/42))
+that this repository's own dogfood run found. It supersedes the previous pin
+`896391cc385798f7f08c5694f70acaf0342789e9`, which in turn superseded
+`efef89b5d747ca175a1947f1ce2f4296dab54fa3` (the `specs/007-arb-queue` merge
+commit).
 
-**The repin changes the provenance of this evidence, not the behavior under
-test.** `git diff efef89b5..896391cc -- packages/ci/` is empty — the queue
-Action's `action.yml` and its committed `dist/queue-action.js` are
-byte-identical across the two commits. Across all of `packages/`, the only
-change is one CLI test file (`packages/cli/test/lint.test.ts`); the remaining
-50 commits are documentation and spec work. Every assertion in
-`scripts/assert-queue-report.ts` reproduces byte-identically under the new pin.
+**Unlike the previous repin, this one does change code under test.** The
+`efef89b5` → `896391cc` repin could be justified by `git diff … --
+packages/ci/` being empty; that justification does **not** carry over here.
+Observed directly in a clone of adrkit at both commits:
+
+```console
+$ git diff --name-status 896391cc..bbe63e01 -- packages/ci/
+M	packages/ci/dist/index.js
+M	packages/ci/dist/queue-action.js
+M	packages/ci/src/comment.ts
+M	packages/ci/test/action.test.ts
+M	packages/ci/test/comment-render.test.ts
+M	packages/ci/test/selectivity.test.ts
+```
+
+Both committed Action bundles were regenerated and the PR-comment renderer
+changed. `action.yml` is unchanged (`git diff … -- 'packages/ci/**/action.yml'`
+is empty), so the Action's input/output contract is the same. The range is a
+single commit (`bbe63e0 fix: close the four dogfood defects (#39, #40, #41,
+#42) (#45)`).
+
+What that means for the evidence in this document, re-verified rather than
+assumed:
+
+| Surface | Across `896391cc` → `bbe63e01` |
+|---|---|
+| `adr queue --format json` / `--format markdown` | **byte-identical** (SHA-256 `716e21b7…` / `fbcd4d5f…`), corpus fingerprint unchanged at `1664c5af…` |
+| `adr lint --dir docs/adr` | **byte-identical** — still `checked 15 records, 0 errors, 0 warnings` |
+| `adr graph --format json` | **byte-identical** |
+| `adr check` / `adr explain` | **changed, deliberately** — see [status-aware governance](#status-aware-governance-changes-what-check-and-explain-report) below |
+| queue Action fail-closed boundary | **re-probed against the regenerated bundle**, not inferred — see [Fail-closed evidence](#fail-closed-evidence-invalid-input-no-write) |
+
+Every assertion in `scripts/assert-queue-report.ts` reproduces identically
+under the new pin, and the `--as-of 2026-07-21` `overdue`/`due` states did not
+move.
 
 This is a full 40-character commit SHA, never a moving branch or tag. Do not
 change any pin in this repository to `@main`, `@v0`, or any other ref without
@@ -54,7 +90,33 @@ re-running the full validation procedure below and updating this document.
 (The pre-existing Phase 3 `packages/ci@main` reference in
 [`.github/workflows/adr.yml`](.github/workflows/adr.yml) predates this pinning
 requirement and is left untouched from Phase 3; it governs PRs against this
-repository, not the ARB queue.)
+repository, not the ARB queue. Because it is unpinned, it picks up the
+status-aware comment renderer from `bbe63e01` automatically — see
+[Live governance comment](#live-governance-comment-status-aware) below.)
+
+### Status-aware governance changes what `check` and `explain` report
+
+This is the one intentional behavior change this repin introduces against this
+repository's own corpus (`0001`–`0012` `accepted`, `0013`–`0015` `proposed`).
+Under `896391cc`, `adr explain src/payments/api/handler.ts` reported `0001`,
+`0002` and `0014` alike, with no status shown. Under `bbe63e01`:
+
+```console
+$ adr explain src/payments/api/handler.ts --dir docs/adr
+Decisions governing src/payments/api/handler.ts:
+  0001  [accepted] Govern the payments source boundary
+    via path: src/payments/**
+  0002  [accepted] Govern the payments API boundary
+    via path: src/payments/api/**
+Active proposals (not yet binding):
+  0014  [proposed] Introduce asynchronous cache invalidation for payments settlement events
+    via path: src/payments/**
+```
+
+`0014` is `proposed`, so it is correctly no longer reported as governing.
+`adr check` makes the same split and its summary line now reads
+`checked: 2 governing, 1 active proposals, 0 historical, …` where it
+previously read `checked: 3 governing, …`.
 
 ## Repository layout
 
@@ -64,9 +126,9 @@ repository, not the ARB queue.)
 | `docs/adr/0013`–`0015` | Phase 6 ARB queue corpus: `proposed` records exercising the `auto`, `async`, and `arb` routing tiers with deterministic SLA state, approvals, objections, and quorum. |
 | `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. |
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
-| `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Unchanged. |
+| `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so as of `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
@@ -103,16 +165,25 @@ regardless of when the script is actually executed.
 This script:
 
 1. Clones `mbeacom/adrkit` and checks out the pinned commit
-   `896391cc385798f7f08c5694f70acaf0342789e9` into a temporary directory
+   `bbe63e017274f173dbb40eeaceccd17df346b32b` into a temporary directory
    (never a branch or tag).
 2. Installs dependencies with `bun install --frozen-lockfile` using
    **Bun 1.3.14**.
 3. Builds the workspace with `bun run build`.
-4. Runs:
+4. Records the binary's self-reported version (`adr --version`, currently
+   `0.2.0`) alongside the pinned SHA, and fails if it exits non-zero or
+   prints nothing. Before `bbe63e01` this was impossible — `adr --version`
+   was an unknown command that exited 2
+   ([mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42)) — so
+   the commit SHA was the only provenance available. This check deliberately
+   does **not** assert the literal string `0.2.0`: a legitimate upstream
+   version bump should not break this repository's CI, whereas losing
+   `--version` entirely should.
+5. Runs:
    ```bash
    adr queue --dir docs/adr --as-of 2026-07-21 --format json
    ```
-5. Asserts the `QueueReport` v1 shape and dogfood expectations via
+6. Asserts the `QueueReport` v1 shape and dogfood expectations via
    `scripts/assert-queue-report.ts`:
    - `version === "1"`
    - zero corpus findings (fully schema-valid corpus)
@@ -121,7 +192,7 @@ This script:
    - at least one `overdue` item and at least one `due` item
    - at least one item with both approvals and objections
    - every item has at least one routing target (decider)
-6. Prints the Markdown rendering and `adr lint` output for human review.
+7. Prints the Markdown rendering and `adr lint` output for human review.
 
 No generated report is committed to this repository — the temporary working
 directory (clone, build output, JSON report) is deleted on exit. The CI
@@ -136,7 +207,7 @@ polluting the corpus with generated artifacts.
 (`workflow_dispatch`) workflow with two steps:
 
 1. `id: queue` runs the packaged
-   `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`
+   `mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b`
    Action against `docs/adr`, producing an `issue-number` output.
 2. A verification step runs `scripts/verify-managed-queue-issue.sh` with
    `GH_TOKEN: ${{ github.token }}` and
@@ -259,9 +330,12 @@ failure boundaries:
 [`fixtures/fail-closed-invalid-corpus-dir`](fixtures/fail-closed-invalid-corpus-dir)
 is a plain regular **file**, not a directory. Passing its path as the
 Action's `dir` input makes Node's `readdir()` throw `ENOTDIR` synchronously
-inside `lintCorpus`, hitting exactly that first boundary. This was verified
-directly against the pinned commit's compiled output before wiring up the
-workflow:
+inside `lintCorpus`, hitting exactly that first boundary.
+
+Because `bbe63e01` regenerated `packages/ci/dist/queue-action.js`, this
+boundary was **re-probed directly against the new bundle** rather than
+carried forward from the previous pin. Running the old and new committed
+bundles side by side produces byte-identical output:
 
 ```
 $ env INPUT_DIR="/tmp/fail-closed-test/fixture-file" INPUT_TOKEN="fake-token-not-used" \
@@ -274,7 +348,10 @@ EXIT CODE: 1
 The Action exits non-zero immediately (no network round trip's worth of
 latency) with a message tied precisely to the corpus-load `catch` block,
 confirming the failure occurs at that boundary and not, e.g., from an
-auth/network error further down.
+auth/network error further down. The `896391cc` and `bbe63e01` bundles were
+run one after the other against the same fixture and produced the identical
+message and exit code above, so the regenerated bundle preserves the
+boundary. That is an observation, not an inference from an unchanged file.
 
 ### The workflow: `arb-queue-fail-closed.yml`
 
@@ -292,7 +369,7 @@ missing scope; that would make any observed failure ambiguous between
    `{number, state, title, updatedAt, bodySha256}`.
 2. **Run the Action** (`continue-on-error: true`) against
    `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
-   `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`
+   `mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b`
    used by `arb-queue.yml`, pointed at the invalid fixture instead of
    `docs/adr`.
 3. **Snapshot after** — the same script, run again.
@@ -321,6 +398,17 @@ the existing `test-assert-managed-issue-body.sh`.
 
 ### Expected vs. observed (most recent live dispatch)
 
+> **Note on currency.** The most recent *live* dispatch below ran under the
+> previous pin `896391cc`. `arb-queue-fail-closed.yml` is
+> `workflow_dispatch`-only, and the workflow file on `main` must carry the new
+> pin before a dispatch can exercise it, so a live `bbe63e01` dispatch is a
+> follow-up to this repin rather than a precondition of it. What *has* been
+> re-verified for `bbe63e01` is the boundary itself, probed locally against
+> the regenerated `dist/queue-action.js` bundle (see above). Treat the live
+> table below as evidence for the `896391cc` bundle and the local probe as
+> evidence for the `bbe63e01` bundle, until this section is refreshed with a
+> new run id.
+
 | Field | Expected | Observed |
 |-------|----------|----------|
 | Pinned adrkit ref | `896391cc385798f7f08c5694f70acaf0342789e9` | `896391cc385798f7f08c5694f70acaf0342789e9` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@896391cc385798f7f08c5694f70acaf0342789e9'`) |
@@ -345,9 +433,13 @@ both before and after (equal ⇒ zero mutation across `1` issue(s), the
 same `#3` managed queue issue, `updatedAt` unchanged).
 
 The error message is byte-identical to the one produced under the previous
-pin, which is the expected result: `packages/ci/` is unchanged between
-`efef89b5` and `896391cc`, so the fail-closed boundary is literally the same
-compiled code.
+pin, which was the expected result at the time: `packages/ci/` is unchanged
+between `efef89b5` and `896391cc`, so the fail-closed boundary was literally
+the same compiled code. **That argument no longer applies to the current
+pin** — `bbe63e01` regenerated `dist/queue-action.js` — which is precisely
+why the boundary was re-probed against the new bundle directly rather than
+assumed. The message and exit code turned out to be identical anyway, but
+that is now a measured result rather than a corollary of an unchanged file.
 
 **Previous dispatch (superseded, retained for provenance):** run
 `29920390292` —
@@ -392,81 +484,212 @@ the governed corpus here was never mutated.
 
 | Surface | Result |
 |---|---|
-| `adr lint` | 15 records, 0 errors, 0 warnings, exit 0. |
-| `adr graph` | `--format dot` and `--format json` both render 15 nodes. This corpus declares no `supersedes`/`relatesTo` links, so **edge rendering is not covered** by this run. |
-| `adr explain` | Correctly resolves overlapping + nested `affects`: `src/payments/api/handler.ts` returns `0001` (`src/payments/**`), `0002` (`src/payments/api/**`) and `0014`. Ungoverned paths report cleanly. |
-| `adr check` | Same resolution as `explain`, plus changed-record handling; `--json` emits `ok`, `changedFiles`, `governedBy`, `changedRecords`, `findings`. |
+| `adr lint` | 15 records, 0 errors, 0 warnings, exit 0. **Still true at `bbe63e01`** — byte-identical output, despite the new `corpus-file-skipped` warning added by [#41](https://github.com/mbeacom/adrkit/issues/41). |
+| `adr graph` | `--format dot` and `--format json` both render 15 nodes. This corpus declares no `supersedes`/`relatesTo` links, so **edge rendering is not covered** by this run. `--format json` is byte-identical at `bbe63e01`. |
+| `adr explain` | Correctly resolves overlapping + nested `affects`. Ungoverned paths report cleanly. **Output changed at `bbe63e01`**: `src/payments/api/handler.ts` now reports `0001` and `0002` as governing and `0014` as an active proposal, rather than all three alike — see [Status-aware governance](#status-aware-governance-changes-what-check-and-explain-report). |
+| `adr check` | Same resolution as `explain`, plus changed-record handling. At `bbe63e01`, `--json` emits `ok`, `changedFiles`, `changedRecords`, `findings`, the retained `governedBy` (now the full union, each entry carrying `status` and `bucket`), and the three new status buckets `governing`, `activeProposals`, and `history`. |
 | `adr new` | Scaffolds a discoverable, lint-clean record with an opinionated template. IDs increment monotonically and a repeated title is disambiguated by ID prefix rather than overwriting. |
-| `adr migrate --from madr` | One-way and non-destructive; `--dry-run` leaves files byte-identical; re-running reports `unchanged` (idempotent). But see defect 2 below. |
+| `adr migrate --from madr` | One-way and non-destructive; `--dry-run` leaves files byte-identical; re-running reports `unchanged` (idempotent). At `bbe63e01` it also parses MADR 2.x and Nygard dialects, warns when a written record would be undiscoverable, and offers opt-in `--rename` — see the resolved defects 2 and 3 below. |
 | `adr evaluate` | All eleven Pass 0 rules run offline. `0015` (`one-way-door`) yields `routing: escalate [one-way-door]`; `0014` yields `expiry-sane: fail (info) — expiry-sane.past-or-equal`, consistent with the queue's `overdue` state for the same record. Absent snapshot backing reports `inert`, never a fabricated pass/fail. |
-| `adr queue` | Covered in detail above. |
+| `adr queue` | Covered in detail above. Byte-identical at `bbe63e01`. |
+| `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). `adr --version` prints `0.2.0` and is now recorded by `scripts/validate-queue.sh` on every run. |
 | `@adrkit/mcp` | All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. |
 | Determinism | `adr queue --format json` and `adr evaluate --json` each produced a single distinct SHA-256 across three consecutive runs. |
 
-### Defects found
+### Defects found — all four now fixed
 
-These are adrkit issues, not issues with this repository. They are recorded
-here because this repository is where they were observed, and each has been
-filed upstream:
+These were adrkit issues, not issues with this repository. They are retained
+here as the evidence trail: this repository is where they were observed, each
+was filed upstream, and each was subsequently fixed. **All four are closed as
+completed and shipped in `bbe63e01`** (PR
+[mbeacom/adrkit#45](https://github.com/mbeacom/adrkit/pull/45)).
 
-| # | Upstream issue | Summary |
-|---|---|---|
-| 1 | [mbeacom/adrkit#39](https://github.com/mbeacom/adrkit/issues/39) | `check`/`explain`/CI Action report non-`accepted` records as governing |
-| 2 | [mbeacom/adrkit#40](https://github.com/mbeacom/adrkit/issues/40) | `migrate --from madr` reads `status` only from YAML frontmatter |
-| 3 | [mbeacom/adrkit#41](https://github.com/mbeacom/adrkit/issues/41) | `migrate` can write records discovery cannot see |
-| 4 | [mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42) | `adr --help`/`--version`/`help` unrecognized, exit 2 |
+Each reproduction below is preserved as originally written, followed by what
+was re-observed against `bbe63e01` on 2026-07-25. The re-verification drove the
+real `adr` binary built from source at the new pin, on the same synthetic
+`/tmp` corpora, exactly as the original run did — it is not a reading of the
+upstream changelog.
 
-**1. `adr check` / `adr explain` / the PR-governance Action treat every
-status as governing.** ([#39](https://github.com/mbeacom/adrkit/issues/39)) A `rejected`, `superseded`, or `deprecated` record
-that matches a changed path is reported as governing that change, with no
-status shown and no way to filter. Reproduced on a synthetic corpus with one
-record per status, all matching `src/api/**`; feeding the resulting
-`CheckOutcome` through the shipped Action's own exported `renderComment`
-produces a PR comment listing "Rejected record", "Superseded record" and
-"Deprecated record" under **Decisions governing this change**, formatted
-identically to the accepted one. The `governedBy` entries expose only
-`recordId`, `title`, and `firedMatchers`, so a downstream consumer cannot
-distinguish them either.
+| # | Upstream issue | Summary | Status |
+|---|---|---|---|
+| 1 | [mbeacom/adrkit#39](https://github.com/mbeacom/adrkit/issues/39) | `check`/`explain`/CI Action report non-`accepted` records as governing | **Fixed** in `bbe63e01`; re-verified here |
+| 2 | [mbeacom/adrkit#40](https://github.com/mbeacom/adrkit/issues/40) | `migrate --from madr` reads `status` only from YAML frontmatter | **Fixed** in `bbe63e01`; re-verified here |
+| 3 | [mbeacom/adrkit#41](https://github.com/mbeacom/adrkit/issues/41) | `migrate` can write records discovery cannot see | **Fixed** in `bbe63e01`; re-verified here |
+| 4 | [mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42) | `adr --help`/`--version`/`help` unrecognized, exit 2 | **Fixed** in `bbe63e01`; re-verified here |
 
-This is an internal inconsistency rather than a deliberate design stance:
+**1. `adr check` / `adr explain` / the PR-governance Action treated every
+status as governing.** ([#39](https://github.com/mbeacom/adrkit/issues/39) —
+**fixed in `bbe63e01`**)
+
+*As originally observed at `896391cc`:* a `rejected`, `superseded`, or
+`deprecated` record that matches a changed path was reported as governing
+that change, with no status shown and no way to filter. Reproduced on a
+synthetic corpus with one record per status, all matching `src/api/**`;
+feeding the resulting `CheckOutcome` through the shipped Action's own exported
+`renderComment` produced a PR comment listing "Rejected record", "Superseded
+record" and "Deprecated record" under **Decisions governing this change**,
+formatted identically to the accepted one. The `governedBy` entries exposed
+only `recordId`, `title`, and `firedMatchers`, so a downstream consumer could
+not distinguish them either.
+
+This was an internal inconsistency rather than a deliberate design stance:
 the MCP server's `get_decision_context` — the same conceptual operation —
-*is* status-aware, returning `status` on every entry and bucketing
+*was already* status-aware, returning `status` on every entry and bucketing
 `accepted` into `governing`, `draft`/`proposed` into `activeProposals`, and
 `rejected`/`superseded`/`deprecated` into `history`.
 
-**2. `adr migrate --from madr` only reads `status` from YAML frontmatter.**
-([#40](https://github.com/mbeacom/adrkit/issues/40))
-Controlled three-way comparison, one MADR dialect each, all declaring
-`accepted`:
+*Re-verified at `bbe63e01`.* The same six-status synthetic corpus was rebuilt
+and driven through both pins. `adr check` now reports:
 
-| Source form | Imported status |
-|---|---|
-| MADR 3.x YAML frontmatter (`status: accepted`) | `accepted` ✅ |
-| MADR 2.x header bullet (`* Status: accepted`) | `proposed` ⚠️ |
-| Nygard section (`## Status` / `accepted`) | `proposed` ⚠️ |
+```console
+$ adr check src/api/route.ts --dir docs/adr
+Decisions governing this change:
+  0003  [accepted] Accepted record
+    via path: src/api/**
+Active proposals touching this change (not yet binding):
+  0001  [draft] Draft record
+    via path: src/api/**
+  0002  [proposed] Proposed record
+    via path: src/api/**
+Historical records that once covered this change (not binding):
+  0004  [rejected] Rejected record
+    via path: src/api/**
+  0005  [superseded] Superseded record (superseded by 0003)
+    via path: src/api/**
+  0006  [deprecated] Deprecated record
+    via path: src/api/**
+checked: 1 governing, 2 active proposals, 3 historical, 0 changed records, 0 changed-record errors
+```
 
-The two failures emit only `warn import-status-unrecognized ... "MADR status
-is missing"` and the command still exits 0. Migrating a real MADR 2.x corpus
-would therefore silently relabel every accepted decision as `proposed` —
-which, combined with `adr queue`, would flood the ARB queue with items that
-were already decided years ago. The same root cause writes `date:
-1970-01-01` when the source date is only present as a `* Date:` bullet.
+Feeding that `CheckOutcome` through the shipped Action's exported
+`renderComment` — the same method used to demonstrate the original defect —
+now yields only `0003` under **Decisions governing this change**, with
+draft/proposed under "Active proposals touching this change" and
+rejected/superseded/deprecated under "Historical records that once covered
+this change", each annotated with its status and, for `0005`, "superseded by
+**0003**".
 
-**3. `adr migrate` can write records the rest of the toolchain cannot
-see.** ([#41](https://github.com/mbeacom/adrkit/issues/41)) Migration writes in place under the original filename, but corpus
-discovery requires `RECORD_FILE_PATTERN = /^[0-9]{4,}-.+\.md$/`. Migrating
-`docs/adr/b-bullet.md` produces a valid adrkit record that `adr lint` then
-reports as `checked 0 records`, exit 0, with no warning — invisible to
-`lint`, `graph`, `check`, `explain`, and `queue`. Copying the identical file
-to `0002-b-bullet.md` makes it `checked 1 records`, isolating the filename
-as the sole cause. Migration already assigns each record an `id`, so it has
-the information needed to name the file correctly.
+The internal inconsistency is closed from both directions: MCP's
+`get_decision_context` returned the identical bucketing on *both* pins
+(`governing=[0003]`, `activeProposals=[0001,0002]`,
+`history=[0004,0005,0006]`), and `adr check --json` now agrees with it
+exactly. `governedBy` is retained as the full union for back-compat, with
+`status` and `bucket` added to each entry.
 
-**4. `adr --help`, `adr --version`, and `adr help` are not recognized.**
-([#42](https://github.com/mbeacom/adrkit/issues/42)) All
-three print `Unknown command` and exit 2. Usage text is printed, so the
-command is discoverable, but `--help` exiting non-zero breaks the common
-convention and any wrapper that shells out to it.
+A corpus where nothing `accepted` matches was also checked, since it is a new
+code path: `adr check` prints "No accepted decisions govern the changed
+files." and `renderComment` renders "No **accepted** decisions govern the
+changed files. Records below matched but do not bind this change." Both are
+correct.
+
+**2. `adr migrate --from madr` only read `status` from YAML frontmatter.**
+([#40](https://github.com/mbeacom/adrkit/issues/40) — **fixed in
+`bbe63e01`**)
+
+*As originally observed at `896391cc`,* a controlled three-way comparison, one
+MADR dialect each, all declaring `accepted`:
+
+| Source form | Imported status at `896391cc` | Imported status at `bbe63e01` |
+|---|---|---|
+| MADR 3.x YAML frontmatter (`status: accepted`) | `accepted` ✅ | `accepted` ✅ |
+| MADR 2.x header bullet (`* Status: accepted`) | `proposed` ⚠️ | `accepted` ✅ |
+| Nygard section (`## Status` / `accepted`) | `proposed` ⚠️ | `accepted` ✅ |
+
+The two failures emitted only `warn import-status-unrecognized ... "MADR
+status is missing"` and the command still exited 0. Migrating a real MADR 2.x
+corpus would therefore silently relabel every accepted decision as `proposed`
+— which, combined with `adr queue`, would flood the ARB queue with items that
+were already decided years ago. The same root cause wrote `date: 1970-01-01`
+when the source date was only present as a `* Date:` bullet.
+
+*Re-verified at `bbe63e01`* by re-running the identical three-file corpus
+through both builds. All three dialects now import as `accepted`, and the
+`import-status-unrecognized` warnings are gone. The date behavior is fixed as
+described and distinguishes the two cases correctly:
+
+- a `* Date: 2026-03-02` bullet now imports as `date: 2026-03-02` (it was
+  `1970-01-01`);
+- a source that genuinely declares no date anywhere still gets the
+  `1970-01-01` placeholder, but now says so, via the new
+  `warn import-date-missing … "MADR source declares no date; using
+  '1970-01-01' as a placeholder — backfill the real decision date"`.
+
+The `superseded by <ref>` mapping was also checked, since it is conditional:
+`* Status: superseded by 0001` where `0001` resolves in the id space the run
+writes imports as `status: superseded` + `supersededBy: "0001"`, whereas
+`* Status: superseded by 9999` (dangling) conservatively falls back to
+`proposed` with `import-status-unrecognized` rather than writing a record that
+would fail the schema's "`superseded` requires `supersededBy`" rule.
+
+**3. `adr migrate` could write records the rest of the toolchain cannot
+see.** ([#41](https://github.com/mbeacom/adrkit/issues/41) — **fixed in
+`bbe63e01`**)
+
+*As originally observed at `896391cc`:* migration writes in place under the
+original filename, but corpus discovery requires
+`RECORD_FILE_PATTERN = /^[0-9]{4,}-.+\.md$/`. Migrating `docs/adr/b-bullet.md`
+produced a valid adrkit record that `adr lint` then reported as
+`checked 0 records`, exit 0, with no warning — invisible to `lint`, `graph`,
+`check`, `explain`, and `queue`. Copying the identical file to
+`0002-b-bullet.md` made it `checked 1 records`, isolating the filename as the
+sole cause. Migration already assigns each record an `id`, so it had the
+information needed to name the file correctly.
+
+*Re-verified at `bbe63e01`* on a corpus of two misnamed top-level files plus
+one nested two directories deep. In-place migration remains the default per
+ADR-0008 — no file is moved unless asked — but it is no longer silent.
+`migrate` now emits one `import-undiscoverable` warning per affected record,
+with the message distinguishing the two causes:
+
+```
+warn import-undiscoverable 0001 path: Migrated record is not discoverable: its filename does not match <id>-<slug>.md …
+warn import-undiscoverable 0003 path: Migrated record is not discoverable: it is in a subdirectory of the corpus, and discovery reads only the top level …
+```
+
+and `adr lint` no longer reports `checked 0 records, 0 errors, 0 warnings`
+into the void — it reports `checked 0 records, 0 errors, 3 warnings` with a
+`corpus-file-skipped` warning naming each skipped file, including the one
+nested at depth two.
+
+The new opt-in `adr migrate --from madr --rename` renames as it writes
+(`a-alpha.md -> 0001-alpha-decision.md`), after which `adr lint` reports
+`checked 2 records`. The nested file is deliberately *not* auto-moved by
+`--rename` — renaming would not have made it discoverable — and it keeps
+warning until it is moved by hand. `--rename` does not exist at `896391cc`
+(exit 2, `Unknown option '--rename'`), confirming it is new.
+
+**4. `adr --help`, `adr --version`, and `adr help` were not recognized.**
+([#42](https://github.com/mbeacom/adrkit/issues/42) — **fixed in
+`bbe63e01`**)
+
+*As originally observed at `896391cc`:* all three printed `Unknown command`
+and exited 2. Usage text was printed, so the command was discoverable, but
+`--help` exiting non-zero breaks the common convention and any wrapper that
+shells out to it.
+
+*Re-verified at `bbe63e01`* across the full invocation matrix, on both pins:
+
+| Invocation | `896391cc` | `bbe63e01` |
+|---|---|---|
+| `adr --help` | exit 2, stderr | exit 0, stdout |
+| `adr -h` | exit 2, stderr | exit 0, stdout |
+| `adr help` | exit 2, stderr | exit 0, stdout |
+| `adr help lint` | exit 2, stderr | exit 0, stdout (per-command usage) |
+| `adr help queue` | exit 2, stderr | exit 0, stdout (per-command usage) |
+| `adr lint --help` | exit 2, stderr | exit 0, stdout |
+| `adr queue --help` | exit 0, stdout | exit 0, stdout |
+| `adr --version` | exit 2, stderr | exit 0, stdout — `0.2.0` |
+| `adr -V` | exit 2, stderr | exit 0, stdout — `0.2.0` |
+| `adr bogus-command` | exit 2, stderr | exit 2, stderr (unchanged, correct) |
+
+Unknown commands still print usage to stderr and exit 2, so the fix did not
+turn a real error into a silent success. `adr queue --help` already worked at
+`896391cc` — the old behavior was inconsistent between subcommands, and is now
+uniform.
+
+Because `adr --version` exists, `scripts/validate-queue.sh` now records it
+next to the pinned SHA on every run. Before this fix, the commit SHA was the
+only provenance the harness could report.
 
 ### Scope and limitations
 
@@ -475,3 +698,137 @@ This is maintainer-run technical dogfooding on one machine (macOS, Bun
 **not** `specs/007-arb-queue` SC-004 / T048 evidence — see the status
 boundary at the top of this document. Graph edge rendering, the adapters
 workspace, and Passes 1–3 of the evaluator were not exercised.
+
+## Re-validation against `bbe63e01` (2026-07-25)
+
+The repin from `896391cc` to `bbe63e01` was gated on re-validating this
+repository against the new commit *before* changing any pin. This section
+records what that run did and what it found, including the parts that are not
+clean.
+
+### Method
+
+Both commits were cloned and built from source with Bun 1.3.14 (macOS arm64,
+Node 22) into separate temporary directories, and the resulting `adr` binaries
+were driven side by side against (a) this repository's real 15-record corpus,
+read-only, and (b) purpose-built synthetic corpora under `/tmp` for everything
+that writes. `docs/adr/**` here was never mutated. Sequence:
+
+1. `./scripts/validate-queue.sh` was run **unmodified at the old pin** first,
+   to establish a passing baseline, together with
+   `scripts/test-assert-managed-issue-body.sh` and
+   `scripts/test-assert-no-issue-mutation.sh`. All passed.
+2. Every observable output was captured from both builds and compared by
+   SHA-256.
+3. Each of the four fixes was reproduced from the outside on synthetic
+   corpora, driving the real binary — the same method that originally found
+   them, not a reading of the upstream diff.
+4. Only then were the pins changed, and `./scripts/validate-queue.sh` re-run
+   end-to-end at the new pin.
+
+### The QueueReport reproduced identically
+
+`adr queue --dir docs/adr --as-of 2026-07-21 --format json` is byte-identical
+across the two pins (SHA-256 `716e21b7…`), as is the Markdown rendering
+(`fbcd4d5f…`), the corpus fingerprint (`1664c5af…`), `adr lint` output, and
+`adr graph --format json`. The hardcoded `--as-of 2026-07-21` `overdue`/`due`
+states did not move. Every assertion in `scripts/assert-queue-report.ts`
+passes at both pins. Diffing the two full `validate-queue.sh` transcripts
+leaves only build metrics (bundle sizes, module counts, timings) and the pin
+and version lines themselves.
+
+The only intentional behavior change against this corpus is `adr check` /
+`adr explain`, documented under
+[Status-aware governance](#status-aware-governance-changes-what-check-and-explain-report).
+
+### The new warnings are not noisy against a realistic corpus
+
+[#41](https://github.com/mbeacom/adrkit/issues/41) added a
+`corpus-file-skipped` lint warning, which is the kind of change that can
+regress a clean corpus into a noisy one. It does not here — `adr lint` on this
+repository's corpus is byte-identical across the pins, still
+`checked 15 records, 0 errors, 0 warnings`.
+
+It was also checked against the conventions real ADR directories carry.
+A corpus containing `README.md`, `template.md` and `index.md` alongside one
+real record produces `checked 1 records, 0 errors, 0 warnings` at both pins:
+those names are on an explicit non-record allowlist
+(`readme.md`, `index.md`, `contributing.md`, `template.md`, plus
+`0000-template.md`), so the warning fires on plausibly-misnamed records rather
+than on every stray markdown file. `corpus-file-skipped` is `warn`, not
+`error`, and `adr lint` still exits 0.
+
+`corpus-file-skipped` also does **not** appear in `adr queue`'s
+`corpusFindings`, so it cannot cause the managed-issue Action to render a
+Corpus Findings section or to fail a run — this repository's
+`scripts/assert-managed-issue-body.sh` "no Corpus Findings section" assertion
+is unaffected.
+
+### Two things this run found that are not fixed
+
+Neither is a regression introduced by `bbe63e01`, and neither blocks the
+repin. Both are reported here rather than omitted, because the point of this
+repository is to report what it observes.
+
+1. **MADR 2.x `* Deciders:` header bullets are still not parsed.** The
+   [#40](https://github.com/mbeacom/adrkit/issues/40) fix taught the importer
+   to read `* Status:` and `* Date:` header bullets, but not `* Deciders:`. A
+   source declaring `* Deciders: @mbeacom` imports with `deciders: []` at
+   *both* pins — so this is pre-existing, not new. It is newly *visible*,
+   though: now that such a record correctly imports as `accepted`, the
+   importer emits `info import-incomplete … "Imported accepted decision has no
+   deciders; … should be backfilled when known"` — advice to go find
+   information that was present in the source file all along. Same class of
+   bug as #40, one field over.
+2. **`adr queue` skips undiscoverable records as silently as `lint` used to.**
+   [#41](https://github.com/mbeacom/adrkit/issues/41) added
+   `corpus-file-skipped` to `lint`, but a corpus whose records are all
+   misnamed or nested still reports `totalItems=0, totalCorpusFindings=0` from
+   `adr queue` with no indication anything was skipped. A consumer who runs
+   only the queue Action — which is exactly what `arb-queue.yml` here does —
+   would not learn that its corpus is invisible. This is arguably outside
+   #41's stated scope (`lint` + `migrate`), which is why it is recorded as an
+   observation rather than a claimed defect in the fix.
+
+### What was re-verified here vs. taken on trust
+
+**Re-verified by running the binary at `bbe63e01`:** all four defect fixes
+(#39–#42) via the reproductions above; QueueReport/lint/graph byte-identity;
+the status bucketing agreeing across `adr check`, `adr explain`, the Action's
+`renderComment`, and MCP `get_decision_context`; the `corpus-file-skipped`
+allowlist behavior; the `superseded by <ref>` resolution rule; the
+help/version invocation matrix; and the corpus-load fail-closed boundary on
+the regenerated `dist/queue-action.js` bundle.
+
+**Taken on trust, not independently verified:** that PR
+[mbeacom/adrkit#45](https://github.com/mbeacom/adrkit/pull/45) is the sole
+source of these changes and that issues #39–#42 are closed as completed; the
+internal claim that a single shared `decisionBucketFor` in `@adrkit/core` is
+what every surface routes through (the *behavior* was verified to agree across
+four surfaces, but agreement is evidence of a shared implementation, not proof
+of one); and adrkit's own test suite, which was not run as part of this
+validation.
+
+### Live governance comment (status-aware)
+
+`.github/workflows/adr.yml` uses `mbeacom/adrkit/packages/ci@main`, unpinned,
+so it picks up the status-aware comment renderer from `bbe63e01` without any
+change to this repository. The pull request that carries this repin also
+touches `src/payments/api/handler.ts` — a path governed by `0001` and `0002`
+(`accepted`) and matched by `0014` (`proposed`) — specifically so the
+governance Action posts a real, status-bucketed comment rather than a trivial
+one. That comment is the live end-to-end counterpart to the local
+`renderComment` reproduction under resolved defect 1.
+
+### Limitations of this re-validation
+
+One machine, one operating system, one Bun version. The synthetic corpora are
+small and purpose-built to isolate each fix; they are not a substitute for a
+real third-party MADR corpus. `arb-queue.yml` and `arb-queue-fail-closed.yml`
+are `workflow_dispatch`-only and had not been dispatched under the new pin at
+the time of writing — the fail-closed boundary was re-probed locally against
+the regenerated bundle instead. adrkit's own test suite was not run. As with
+everything else in this repository, none of this is
+`specs/007-arb-queue` SC-004 / T048 evidence: see the status boundary at the
+top of this document. Re-validating a fix does not make this repository
+independent of the maintainer who wrote it.

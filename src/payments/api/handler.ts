@@ -5,3 +5,7 @@ export function handlePayment(): string {
 export function refundPayment(): string {
   return 'refunded';
 }
+
+export function voidPayment(): string {
+  return 'voided';
+}
