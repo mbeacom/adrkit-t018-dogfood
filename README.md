@@ -517,6 +517,12 @@ upstream changelog.
 | 3 | [mbeacom/adrkit#41](https://github.com/mbeacom/adrkit/issues/41) | `migrate` can write records discovery cannot see | **Fixed** in `bbe63e01`; re-verified here |
 | 4 | [mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42) | `adr --help`/`--version`/`help` unrecognized, exit 2 | **Fixed** in `bbe63e01`; re-verified here |
 
+The re-validation run that confirmed these also filed two further findings —
+[#50](https://github.com/mbeacom/adrkit/issues/50) and
+[#51](https://github.com/mbeacom/adrkit/issues/51) — neither of which is a
+regression from `bbe63e01`. See
+[Two things this run found that are not fixed](#two-things-this-run-found-that-are-not-fixed).
+
 **1. `adr check` / `adr explain` / the PR-governance Action treated every
 status as governing.** ([#39](https://github.com/mbeacom/adrkit/issues/39) —
 **fixed in `bbe63e01`**)
@@ -768,9 +774,11 @@ is unaffected.
 
 Neither is a regression introduced by `bbe63e01`, and neither blocks the
 repin. Both are reported here rather than omitted, because the point of this
-repository is to report what it observes.
+repository is to report what it observes, and both were filed upstream with
+reproductions the same way #39–#42 were.
 
-1. **MADR 2.x `* Deciders:` header bullets are still not parsed.** The
+1. **MADR 2.x `* Deciders:` header bullets are still not parsed.**
+   ([mbeacom/adrkit#50](https://github.com/mbeacom/adrkit/issues/50)) The
    [#40](https://github.com/mbeacom/adrkit/issues/40) fix taught the importer
    to read `* Status:` and `* Date:` header bullets, but not `* Deciders:`. A
    source declaring `* Deciders: @mbeacom` imports with `deciders: []` at
@@ -781,14 +789,19 @@ repository is to report what it observes.
    information that was present in the source file all along. Same class of
    bug as #40, one field over.
 2. **`adr queue` skips undiscoverable records as silently as `lint` used to.**
+   ([mbeacom/adrkit#51](https://github.com/mbeacom/adrkit/issues/51))
    [#41](https://github.com/mbeacom/adrkit/issues/41) added
    `corpus-file-skipped` to `lint`, but a corpus whose records are all
    misnamed or nested still reports `totalItems=0, totalCorpusFindings=0` from
-   `adr queue` with no indication anything was skipped. A consumer who runs
-   only the queue Action — which is exactly what `arb-queue.yml` here does —
-   would not learn that its corpus is invisible. This is arguably outside
-   #41's stated scope (`lint` + `migrate`), which is why it is recorded as an
-   observation rather than a claimed defect in the fix.
+   `adr queue`, rendering `*No proposed records found.*` — which reads as
+   "your queue is empty" rather than "I could not see your records". A
+   consumer who runs only the queue Action — which is exactly what
+   `arb-queue.yml` here does — would not learn that its corpus is invisible.
+   Verified against a single `proposed` `arb`-tier record: undiscoverable
+   filename gives `totalItems=0`, the byte-identical file renamed to
+   `0001-…md` gives `totalItems=1`. This is arguably outside #41's stated
+   scope (`lint` + `migrate`), which is why it is recorded as an observation
+   rather than a claimed defect in the fix.
 
 ### What was re-verified here vs. taken on trust
 
