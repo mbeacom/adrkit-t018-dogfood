@@ -406,10 +406,18 @@ the governed corpus here was never mutated.
 ### Defects found
 
 These are adrkit issues, not issues with this repository. They are recorded
-here because this repository is where they were observed.
+here because this repository is where they were observed, and each has been
+filed upstream:
+
+| # | Upstream issue | Summary |
+|---|---|---|
+| 1 | [mbeacom/adrkit#39](https://github.com/mbeacom/adrkit/issues/39) | `check`/`explain`/CI Action report non-`accepted` records as governing |
+| 2 | [mbeacom/adrkit#40](https://github.com/mbeacom/adrkit/issues/40) | `migrate --from madr` reads `status` only from YAML frontmatter |
+| 3 | [mbeacom/adrkit#41](https://github.com/mbeacom/adrkit/issues/41) | `migrate` can write records discovery cannot see |
+| 4 | [mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42) | `adr --help`/`--version`/`help` unrecognized, exit 2 |
 
 **1. `adr check` / `adr explain` / the PR-governance Action treat every
-status as governing.** A `rejected`, `superseded`, or `deprecated` record
+status as governing.** ([#39](https://github.com/mbeacom/adrkit/issues/39)) A `rejected`, `superseded`, or `deprecated` record
 that matches a changed path is reported as governing that change, with no
 status shown and no way to filter. Reproduced on a synthetic corpus with one
 record per status, all matching `src/api/**`; feeding the resulting
@@ -427,6 +435,7 @@ the MCP server's `get_decision_context` — the same conceptual operation —
 `rejected`/`superseded`/`deprecated` into `history`.
 
 **2. `adr migrate --from madr` only reads `status` from YAML frontmatter.**
+([#40](https://github.com/mbeacom/adrkit/issues/40))
 Controlled three-way comparison, one MADR dialect each, all declaring
 `accepted`:
 
@@ -444,7 +453,7 @@ were already decided years ago. The same root cause writes `date:
 1970-01-01` when the source date is only present as a `* Date:` bullet.
 
 **3. `adr migrate` can write records the rest of the toolchain cannot
-see.** Migration writes in place under the original filename, but corpus
+see.** ([#41](https://github.com/mbeacom/adrkit/issues/41)) Migration writes in place under the original filename, but corpus
 discovery requires `RECORD_FILE_PATTERN = /^[0-9]{4,}-.+\.md$/`. Migrating
 `docs/adr/b-bullet.md` produces a valid adrkit record that `adr lint` then
 reports as `checked 0 records`, exit 0, with no warning — invisible to
@@ -453,7 +462,8 @@ to `0002-b-bullet.md` makes it `checked 1 records`, isolating the filename
 as the sole cause. Migration already assigns each record an `id`, so it has
 the information needed to name the file correctly.
 
-**4. `adr --help`, `adr --version`, and `adr help` are not recognized.** All
+**4. `adr --help`, `adr --version`, and `adr help` are not recognized.**
+([#42](https://github.com/mbeacom/adrkit/issues/42)) All
 three print `Unknown command` and exit 2. Usage text is printed, so the
 command is discoverable, but `--help` exiting non-zero breaks the common
 convention and any wrapper that shells out to it.
