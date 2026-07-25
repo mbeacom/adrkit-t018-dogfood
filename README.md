@@ -24,12 +24,24 @@ tracked separately in the `adrkit` repository.
 ## Pinned adrkit commit
 
 All adrkit usage in this repository — the validation script and the
-GitHub Actions workflow — is pinned to the exact merged implementation
-commit for `specs/007-arb-queue`:
+GitHub Actions workflows — is pinned to an exact 40-character adrkit commit:
 
 ```
-efef89b5d747ca175a1947f1ce2f4296dab54fa3
+896391cc385798f7f08c5694f70acaf0342789e9
 ```
+
+This is the tip of adrkit `main` as of 2026-07-25. It supersedes the previous
+pin `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (the `specs/007-arb-queue`
+merge commit). The repin was made to dogfood the current tip of adrkit rather
+than a now-historical commit.
+
+**The repin changes the provenance of this evidence, not the behavior under
+test.** `git diff efef89b5..896391cc -- packages/ci/` is empty — the queue
+Action's `action.yml` and its committed `dist/queue-action.js` are
+byte-identical across the two commits. Across all of `packages/`, the only
+change is one CLI test file (`packages/cli/test/lint.test.ts`); the remaining
+50 commits are documentation and spec work. Every assertion in
+`scripts/assert-queue-report.ts` reproduces byte-identically under the new pin.
 
 This is a full 40-character commit SHA, never a moving branch or tag. Do not
 change any pin in this repository to `@main`, `@v0`, or any other ref without
@@ -49,7 +61,7 @@ repository, not the ARB queue.)
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Unchanged. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
@@ -86,7 +98,7 @@ regardless of when the script is actually executed.
 This script:
 
 1. Clones `mbeacom/adrkit` and checks out the pinned commit
-   `efef89b5d747ca175a1947f1ce2f4296dab54fa3` into a temporary directory
+   `896391cc385798f7f08c5694f70acaf0342789e9` into a temporary directory
    (never a branch or tag).
 2. Installs dependencies with `bun install --frozen-lockfile` using
    **Bun 1.3.14**.
@@ -119,7 +131,7 @@ polluting the corpus with generated artifacts.
 (`workflow_dispatch`) workflow with two steps:
 
 1. `id: queue` runs the packaged
-   `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`
+   `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`
    Action against `docs/adr`, producing an `issue-number` output.
 2. A verification step runs `scripts/verify-managed-queue-issue.sh` with
    `GH_TOKEN: ${{ github.token }}` and
@@ -275,7 +287,7 @@ missing scope; that would make any observed failure ambiguous between
    `{number, state, title, updatedAt, bodySha256}`.
 2. **Run the Action** (`continue-on-error: true`) against
    `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
-   `mbeacom/adrkit/packages/ci/queue@efef89b5d747ca175a1947f1ce2f4296dab54fa3`
+   `mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9`
    used by `arb-queue.yml`, pointed at the invalid fixture instead of
    `docs/adr`.
 3. **Snapshot after** — the same script, run again.

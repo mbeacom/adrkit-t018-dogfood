@@ -23,10 +23,14 @@
 # committed to this repository.
 set -euo pipefail
 
-# Pin: exact merged adrkit commit for specs/007-arb-queue (Phase 6 ARB queue).
+# Pin: exact adrkit commit dogfooded by this repository. Currently the tip of
+# adrkit `main` as of 2026-07-25, which supersedes the original
+# specs/007-arb-queue merge commit efef89b5d747ca175a1947f1ce2f4296dab54fa3.
+# `packages/ci/` is byte-identical between the two, so this repin changes the
+# provenance of the evidence, not the Action's behavior.
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
 # commit").
-ADRKIT_REF="efef89b5d747ca175a1947f1ce2f4296dab54fa3"
+ADRKIT_REF="896391cc385798f7f08c5694f70acaf0342789e9"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 
