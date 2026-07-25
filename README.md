@@ -875,22 +875,44 @@ reproductions the same way #39–#42 were.
    rather than a claimed defect in the fix.
 
    **Forward dependency for the next repin.** Fixing
-   [#51](https://github.com/mbeacom/adrkit/issues/51) would change what the
-   managed queue issue renders for a corpus with skipped files, and this
-   repository asserts on that. Two things here are coupled to the current
-   behavior: `scripts/assert-managed-issue-body.sh` asserts the **absence** of
-   a `## Corpus Findings` section and that the summary reports
-   `0 corpus finding(s)`, and `scripts/assert-queue-report.ts` asserts
-   `totalCorpusFindings === 0` with an empty `corpusFindings` array. Those
-   assertions hold today and would continue to hold for *this* corpus, which
-   has no skipped files — but they are written as blanket invariants, not
-   scoped to "no skipped files", so they encode an assumption that a #51 fix
-   would invalidate for consumers generally. The upstream maintainer has
-   flagged that `CorpusFinding.severity` is currently a `'error'` literal
-   rather than a union, so surfacing a `warn`-severity finding there widens a
-   frozen v1 contract. Whoever performs the next repin should re-read both
-   assertion scripts before assuming they still express the intended
-   invariant.
+   [#51](https://github.com/mbeacom/adrkit/issues/51) changes what the managed
+   queue issue renders for a corpus with skipped files, and this repository
+   asserts on that. Two things here are coupled to the current behavior:
+   `scripts/assert-managed-issue-body.sh` (lines 134–138) asserts the
+   **absence** of a `## Corpus Findings` section and that the summary reports
+   `0 corpus finding(s)`, and `scripts/assert-queue-report.ts` (lines 76–77)
+   asserts `totalCorpusFindings === 0` with an empty `corpusFindings` array.
+   Those assertions hold today and would continue to hold for *this* corpus,
+   which has no skipped files — but they are written as blanket invariants,
+   not scoped to "no skipped files", so they encode an assumption the fix
+   invalidates for consumers generally.
+
+   The fix's shape is now known:
+   [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52) widens
+   `CorpusFinding.severity` from the `'error'` literal to `'error' | 'warn'`
+   and emits `corpus-file-skipped` as a new `corpus.file-skipped` code at
+   `warn`, chosen so that neither the CLI exit code nor the Action's
+   `setFailed` — both of which already filter on `error` alone — starts
+   failing on corpora that pass today.
+
+   **These assertions were deliberately not changed as part of this repin.**
+   At `bbe63e01` the severity field is still the `'error'` literal —
+   `packages/core/src/queue/types.ts:45` reads `severity: 'error';`, read
+   directly at the pinned commit rather than taken from the upstream
+   description — so a `warn`-severity corpus finding cannot occur: "assert no
+   corpus findings" and "assert no *error-severity* corpus findings" are the
+   same assertion against the code actually under test here. Writing the
+   narrower form now would be asserting against behavior not present at the
+   pinned commit, which is the kind of thing this repository exists not to do.
+
+   When the pin moves to a commit that carries #52, tighten both to
+   error-severity and note the trade-off being accepted: the current blanket
+   form fails **loudly** on any unexpected finding, whereas a filtered form
+   (`corpusFindings.filter(f => f.severity === 'error')`) fails **quietly** if
+   the field is ever renamed or restructured — an empty filter result is
+   indistinguishable from a clean corpus. So whoever makes that change should
+   verify the tightened assertion actually *fires* against a corpus with a
+   skipped file, not merely that it still passes against this one.
 
 ### What was re-verified here vs. taken on trust
 
