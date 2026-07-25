@@ -78,7 +78,8 @@ assumed:
 | `adr lint --dir docs/adr` | **byte-identical** — still `checked 15 records, 0 errors, 0 warnings` |
 | `adr graph --format json` | **byte-identical** |
 | `adr check` / `adr explain` | **changed, deliberately** — see [status-aware governance](#status-aware-governance-changes-what-check-and-explain-report) below |
-| queue Action fail-closed boundary | **re-probed against the regenerated bundle**, not inferred — see [Fail-closed evidence](#fail-closed-evidence-invalid-input-no-write) |
+| queue Action fail-closed boundary | **re-probed against the regenerated bundle**, locally and then live under the new pin — see [Fail-closed evidence](#fail-closed-evidence-invalid-input-no-write) |
+| queue Action managed-issue path | **re-dispatched live under the new pin**; all self-verification assertions passed and issue `#3` was a no-op update — see [The managed queue issue](#the-managed-queue-issue-arb-queueyml) |
 
 Every assertion in `scripts/assert-queue-report.ts` reproduces identically
 under the new pin, and the `--as-of 2026-07-21` `overdue`/`due` states did not
@@ -291,6 +292,30 @@ assertion logic run in two contexts:
   This runs automatically in [`queue-validation.yml`](.github/workflows/queue-validation.yml)
   on every pull request, push to `main`, and `workflow_dispatch`.
 
+### Live dispatch under the current pin
+
+Dispatched against the repin branch at commit `8d43f4b` (PR
+[#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8)) — run
+[`30169610361`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30169610361),
+conclusion `success`, with the Action resolved at
+`Download action repository 'mbeacom/adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b'`.
+
+Every self-verification assertion passed, including exhaustive marker
+discovery (`exactly one issue carries the managed-queue marker across
+OPEN+CLOSED issues (found 1: 3)`), the marker's exact first-line position, the
+`ADR ARB Queue` title, `open` state, an overview-table row for each of `0013`
+/ `0014` / `0015` with its fixed tier label, `0015`'s `3/3` full quorum, the
+absence of a `## Corpus Findings` section, and a `0 corpus finding(s)`
+summary.
+
+Worth recording: the dispatch was a **no-op update**. Issue `#3`'s body
+SHA-256 was `e82221fc2ad8946720d9897d687029320e7ba0b206c945094023f51ea3642d30`
+both before and after, and its `updatedAt` stayed at `2026-07-25T13:16:43Z` —
+the Action recognized the rendered report already matched and did not churn
+the issue. (This workflow always uses the default `--as-of` of today, so a
+same-day re-dispatch is expected to be idempotent; a dispatch on a later date
+would legitimately change the SLA states and therefore the body.)
+
 As with everything else in this repository, `verify-managed-queue-issue.sh`
 is technical, owner-run evidence that the queue kernel/CLI/Action behave
 correctly — it is not, and does not claim to be, `specs/007-arb-queue`
@@ -398,30 +423,21 @@ the existing `test-assert-managed-issue-body.sh`.
 
 ### Expected vs. observed (most recent live dispatch)
 
-> **Note on currency.** The most recent *live* dispatch below ran under the
-> previous pin `896391cc`. `arb-queue-fail-closed.yml` is
-> `workflow_dispatch`-only, and the workflow file on `main` must carry the new
-> pin before a dispatch can exercise it, so a live `bbe63e01` dispatch is a
-> follow-up to this repin rather than a precondition of it. What *has* been
-> re-verified for `bbe63e01` is the boundary itself, probed locally against
-> the regenerated `dist/queue-action.js` bundle (see above). Treat the live
-> table below as evidence for the `896391cc` bundle and the local probe as
-> evidence for the `bbe63e01` bundle, until this section is refreshed with a
-> new run id.
-
 | Field | Expected | Observed |
 |-------|----------|----------|
-| Pinned adrkit ref | `896391cc385798f7f08c5694f70acaf0342789e9` | `896391cc385798f7f08c5694f70acaf0342789e9` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@896391cc385798f7f08c5694f70acaf0342789e9'`) |
+| Pinned adrkit ref | `bbe63e017274f173dbb40eeaceccd17df346b32b` | `bbe63e017274f173dbb40eeaceccd17df346b32b` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b'`) |
 | Fixture | `fixtures/fail-closed-invalid-corpus-dir` (plain file, not a directory) | (unchanged) |
 | `queue` step outcome | `failure` | `failure` |
 | `queue` step `issue-number` output | (empty/unset) | (empty/unset) |
 | Issue mutation | zero (before/after snapshot hashes equal) | zero — hashes equal, issue count unchanged at 1 |
 | Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | `success` |
 
-**Live run:** `30159430259` —
-<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30159430259>
-— branch `mbeacom-supreme-disco` (PR #7, the repin to `896391cc`) —
-conclusion: `success`. The `queue` step's own error output was:
+**Live run:** `30169579874` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30169579874>
+— dispatched against branch `mbeacom-repin-adrkit-bbe63e01` at commit
+`8d43f4b` (PR [#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8), the
+repin to `bbe63e01`) — conclusion: `success`. The `queue` step's own error
+output was:
 
 ```
 ##[error]adrkit queue: could not load the ADR corpus at 'fixtures/fail-closed-invalid-corpus-dir': ENOTDIR: not a directory, scandir '/home/runner/work/adrkit-t018-dogfood/adrkit-t018-dogfood/fixtures/fail-closed-invalid-corpus-dir'
@@ -432,20 +448,39 @@ Before/after snapshot SHA-256 (canonicalized):
 both before and after (equal ⇒ zero mutation across `1` issue(s), the
 same `#3` managed queue issue, `updatedAt` unchanged).
 
-The error message is byte-identical to the one produced under the previous
-pin, which was the expected result at the time: `packages/ci/` is unchanged
-between `efef89b5` and `896391cc`, so the fail-closed boundary was literally
-the same compiled code. **That argument no longer applies to the current
-pin** — `bbe63e01` regenerated `dist/queue-action.js` — which is precisely
-why the boundary was re-probed against the new bundle directly rather than
-assumed. The message and exit code turned out to be identical anyway, but
-that is now a measured result rather than a corollary of an unchanged file.
+Note that this dispatch was made **against the pull request branch, before
+merge**, using `gh workflow run --ref mbeacom-repin-adrkit-bbe63e01`. A
+`workflow_dispatch` workflow must exist on the default branch to be
+dispatchable at all — both of these do — but the run then executes the
+workflow file *from the dispatched ref*, which is why it picked up the new pin
+while `main` still carried `896391cc`. That is what made it possible to
+produce live consumer-facing evidence for `bbe63e01` as a precondition of the
+repin rather than a follow-up to it.
 
-**Previous dispatch (superseded, retained for provenance):** run
+**Previous dispatch under the old pin (superseded, retained for
+provenance):** run `30159430259` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30159430259>
+— branch `mbeacom-supreme-disco` (PR #7, the repin to `896391cc`) —
+conclusion: `success`, with the byte-identical error message and the same
+snapshot digest `a6eef1ed…`. The digest matching across the two pins is a
+real continuity check, not a coincidence: it means issue `#3`'s body,
+`updatedAt`, state and title were untouched by both runs.
+
+The error message is byte-identical to the one produced under both previous
+pins. Between `efef89b5` and `896391cc` that was a corollary of an unchanged
+`packages/ci/`, so the fail-closed boundary was literally the same compiled
+code. **That argument does not apply to the current pin** — `bbe63e01`
+regenerated `dist/queue-action.js` — which is why the boundary was re-probed
+against the new bundle directly rather than assumed, first locally against the
+committed bundle and then live via run `30169579874` above. The message and
+exit code turned out to be identical anyway, but that is now a measured
+result rather than an inference from an unchanged file.
+
+**Earliest dispatch (superseded, retained for provenance):** run
 `29920390292` —
 <https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/29920390292>
 — commit `2d7f6063b1d0d93f453138cf24a2bcd81aa287a6` (the `main` merge commit
-for PR #6) — conclusion: `success`, using the older pin
+for PR #6) — conclusion: `success`, using the oldest pin
 `efef89b5d747ca175a1947f1ce2f4296dab54fa3`. Its before/after snapshot
 SHA-256 was `9b15bda8a202ec4bb9539f920ceb47f96b2844a4b46232c2a3a4465e579802d9`
 and its uploaded evidence artifact SHA-256 was
@@ -454,8 +489,8 @@ Runner: `ubuntu-24.04` (image `20260714.240.1`, Actions runner `2.336.0`);
 `GITHUB_TOKEN` permissions were exactly `contents: read`, `issues: write`,
 `metadata: read` with secret source `Actions` (no PAT or
 repository/organization secret involved). Action versions:
-`actions/checkout@v4`, `actions/upload-artifact@v4`. The snapshot digest
-differs from the current run only because issue `#3`'s body (and therefore
+`actions/checkout@v4`, `actions/upload-artifact@v4`. Its snapshot digest
+differs from the two later runs only because issue `#3`'s body (and therefore
 its `bodySha256`) legitimately changed in between, when `arb-queue.yml` was
 re-dispatched and updated the managed issue.
 
@@ -942,12 +977,8 @@ Queue validation complete: adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b (adr 
 
 One machine, one operating system, one Bun version. The synthetic corpora are
 small and purpose-built to isolate each fix; they are not a substitute for a
-real third-party MADR corpus. `arb-queue.yml` and `arb-queue-fail-closed.yml`
-are `workflow_dispatch`-only and had not been dispatched under the new pin at
-the time of writing — the fail-closed boundary was re-probed locally against
-the regenerated bundle instead, and the live governance comment above came
-from `adr.yml`, which is `pull_request`-triggered. adrkit's own test suite was
-not run. As with everything else in this repository, none of this is
+real third-party MADR corpus. adrkit's own test suite was not run. As with
+everything else in this repository, none of this is
 `specs/007-arb-queue` SC-004 / T048 evidence: see the status boundary at the
 top of this document. Re-validating a fix does not make this repository
 independent of the maintainer who wrote it.
