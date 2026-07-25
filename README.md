@@ -9,6 +9,11 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   CLI, the `QueueReport` v1 contract, and the `mbeacom/adrkit/packages/ci/queue`
   managed-issue Action against a corpus of `proposed` decision records
   (`docs/adr/0013`–`0015`) spanning all three ARB routing tiers.
+- **Full CLI + MCP surface dogfood (2026-07-25)** — a one-off, wider run
+  covering every `adr` subcommand and the `@adrkit/mcp` server, performed at
+  the time of the `896391cc` repin. See
+  [Full CLI + MCP surface dogfood](#full-cli--mcp-surface-dogfood-2026-07-25)
+  for what works and the four defects it found.
 
 ## ⚠️ Status boundary — this is NOT SC-004 evidence
 
@@ -369,3 +374,94 @@ of this repository (see the status boundary above), it is **not**
 `specs/007-arb-queue` SC-004/T048 evidence — it does not involve an
 independent, non-maintainer-owned team — and it does not attempt to
 enumerate every possible invalid-input class the Action might encounter.
+
+## Full CLI + MCP surface dogfood (2026-07-25)
+
+Everything above exercises the **ARB queue** slice of adrkit. This section
+records a one-off, wider dogfood run performed at the time of the
+`896391cc` repin, covering every `adr` subcommand and the `@adrkit/mcp`
+server. It is a point-in-time report, not a CI-enforced gate — only the
+queue checks above run automatically.
+
+Method: adrkit was cloned at `896391cc385798f7f08c5694f70acaf0342789e9`,
+built with Bun 1.3.14, and driven against (a) this repository's real
+15-record corpus and (b) purpose-built synthetic corpora under `/tmp` so
+the governed corpus here was never mutated.
+
+### What works
+
+| Surface | Result |
+|---|---|
+| `adr lint` | 15 records, 0 errors, 0 warnings, exit 0. |
+| `adr graph` | `--format dot` and `--format json` both render 15 nodes. This corpus declares no `supersedes`/`relatesTo` links, so **edge rendering is not covered** by this run. |
+| `adr explain` | Correctly resolves overlapping + nested `affects`: `src/payments/api/handler.ts` returns `0001` (`src/payments/**`), `0002` (`src/payments/api/**`) and `0014`. Ungoverned paths report cleanly. |
+| `adr check` | Same resolution as `explain`, plus changed-record handling; `--json` emits `ok`, `changedFiles`, `governedBy`, `changedRecords`, `findings`. |
+| `adr new` | Scaffolds a discoverable, lint-clean record with an opinionated template. IDs increment monotonically and a repeated title is disambiguated by ID prefix rather than overwriting. |
+| `adr migrate --from madr` | One-way and non-destructive; `--dry-run` leaves files byte-identical; re-running reports `unchanged` (idempotent). But see defect 2 below. |
+| `adr evaluate` | All eleven Pass 0 rules run offline. `0015` (`one-way-door`) yields `routing: escalate [one-way-door]`; `0014` yields `expiry-sane: fail (info) — expiry-sane.past-or-equal`, consistent with the queue's `overdue` state for the same record. Absent snapshot backing reports `inert`, never a fabricated pass/fail. |
+| `adr queue` | Covered in detail above. |
+| `@adrkit/mcp` | All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. |
+| Determinism | `adr queue --format json` and `adr evaluate --json` each produced a single distinct SHA-256 across three consecutive runs. |
+
+### Defects found
+
+These are adrkit issues, not issues with this repository. They are recorded
+here because this repository is where they were observed.
+
+**1. `adr check` / `adr explain` / the PR-governance Action treat every
+status as governing.** A `rejected`, `superseded`, or `deprecated` record
+that matches a changed path is reported as governing that change, with no
+status shown and no way to filter. Reproduced on a synthetic corpus with one
+record per status, all matching `src/api/**`; feeding the resulting
+`CheckOutcome` through the shipped Action's own exported `renderComment`
+produces a PR comment listing "Rejected record", "Superseded record" and
+"Deprecated record" under **Decisions governing this change**, formatted
+identically to the accepted one. The `governedBy` entries expose only
+`recordId`, `title`, and `firedMatchers`, so a downstream consumer cannot
+distinguish them either.
+
+This is an internal inconsistency rather than a deliberate design stance:
+the MCP server's `get_decision_context` — the same conceptual operation —
+*is* status-aware, returning `status` on every entry and bucketing
+`accepted` into `governing`, `draft`/`proposed` into `activeProposals`, and
+`rejected`/`superseded`/`deprecated` into `history`.
+
+**2. `adr migrate --from madr` only reads `status` from YAML frontmatter.**
+Controlled three-way comparison, one MADR dialect each, all declaring
+`accepted`:
+
+| Source form | Imported status |
+|---|---|
+| MADR 3.x YAML frontmatter (`status: accepted`) | `accepted` ✅ |
+| MADR 2.x header bullet (`* Status: accepted`) | `proposed` ⚠️ |
+| Nygard section (`## Status` / `accepted`) | `proposed` ⚠️ |
+
+The two failures emit only `warn import-status-unrecognized ... "MADR status
+is missing"` and the command still exits 0. Migrating a real MADR 2.x corpus
+would therefore silently relabel every accepted decision as `proposed` —
+which, combined with `adr queue`, would flood the ARB queue with items that
+were already decided years ago. The same root cause writes `date:
+1970-01-01` when the source date is only present as a `* Date:` bullet.
+
+**3. `adr migrate` can write records the rest of the toolchain cannot
+see.** Migration writes in place under the original filename, but corpus
+discovery requires `RECORD_FILE_PATTERN = /^[0-9]{4,}-.+\.md$/`. Migrating
+`docs/adr/b-bullet.md` produces a valid adrkit record that `adr lint` then
+reports as `checked 0 records`, exit 0, with no warning — invisible to
+`lint`, `graph`, `check`, `explain`, and `queue`. Copying the identical file
+to `0002-b-bullet.md` makes it `checked 1 records`, isolating the filename
+as the sole cause. Migration already assigns each record an `id`, so it has
+the information needed to name the file correctly.
+
+**4. `adr --help`, `adr --version`, and `adr help` are not recognized.** All
+three print `Unknown command` and exit 2. Usage text is printed, so the
+command is discoverable, but `--help` exiting non-zero breaks the common
+convention and any wrapper that shells out to it.
+
+### Scope and limitations
+
+This is maintainer-run technical dogfooding on one machine (macOS, Bun
+1.3.14, Node 22) plus the four live GitHub Actions runs linked above. It is
+**not** `specs/007-arb-queue` SC-004 / T048 evidence — see the status
+boundary at the top of this document. Graph edge rendering, the adapters
+workspace, and Passes 1–3 of the evaluator were not exercised.
