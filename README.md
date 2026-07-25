@@ -813,12 +813,51 @@ validation.
 
 `.github/workflows/adr.yml` uses `mbeacom/adrkit/packages/ci@main`, unpinned,
 so it picks up the status-aware comment renderer from `bbe63e01` without any
-change to this repository. The pull request that carries this repin also
-touches `src/payments/api/handler.ts` — a path governed by `0001` and `0002`
+change to this repository. The pull request that carried this repin
+([#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8)) also touches
+`src/payments/api/handler.ts` — a path governed by `0001` and `0002`
 (`accepted`) and matched by `0014` (`proposed`) — specifically so the
 governance Action posts a real, status-bucketed comment rather than a trivial
-one. That comment is the live end-to-end counterpart to the local
-`renderComment` reproduction under resolved defect 1.
+one.
+
+Observed on that PR (run
+[`30163165966`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163165966),
+conclusion `success`), posted by `github-actions[bot]`:
+
+```markdown
+<!-- adrkit:ci -->
+
+### Decisions governing this change
+
+- **0001** — Govern the payments source boundary
+  - via `path`: `src/payments/**`
+- **0002** — Govern the payments API boundary
+  - via `path`: `src/payments/api/**`
+
+#### Active proposals touching this change
+
+These are not yet ratified and do not bind this change:
+- **0014** — Introduce asynchronous cache invalidation for payments settlement events _(proposed)_
+  - via `path`: `src/payments/**`
+```
+
+This is the live end-to-end counterpart to the local `renderComment`
+reproduction under resolved defect 1, and it matches that local prediction
+exactly. Under `896391cc` the same change would have listed `0014` alongside
+`0001` and `0002` under **Decisions governing this change**, unlabelled.
+
+The companion `queue-validation.yml` run
+([`30163165953`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163165953),
+conclusion `success`) confirms the repin in CI as well as locally:
+
+```
+==> Fetching adrkit at pinned commit bbe63e017274f173dbb40eeaceccd17df346b32b (shallow, no full clone)
+==> Recording adr --version (regression check for mbeacom/adrkit#42)
+adr --version: 0.2.0
+Queue validation OK: 3 proposed item(s), 0 corpus findings, all tiers represented.
+checked 15 records, 0 errors, 0 warnings
+Queue validation complete: adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b (adr 0.2.0), as-of 2026-07-21.
+```
 
 ### Limitations of this re-validation
 
@@ -827,8 +866,9 @@ small and purpose-built to isolate each fix; they are not a substitute for a
 real third-party MADR corpus. `arb-queue.yml` and `arb-queue-fail-closed.yml`
 are `workflow_dispatch`-only and had not been dispatched under the new pin at
 the time of writing — the fail-closed boundary was re-probed locally against
-the regenerated bundle instead. adrkit's own test suite was not run. As with
-everything else in this repository, none of this is
+the regenerated bundle instead, and the live governance comment above came
+from `adr.yml`, which is `pull_request`-triggered. adrkit's own test suite was
+not run. As with everything else in this repository, none of this is
 `specs/007-arb-queue` SC-004 / T048 evidence: see the status boundary at the
 top of this document. Re-validating a fix does not make this repository
 independent of the maintainer who wrote it.
