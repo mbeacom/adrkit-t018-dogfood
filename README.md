@@ -951,11 +951,17 @@ reproductions the same way #39–#42 were.
 
    To be unambiguous about where that instruction comes from: it is a
    convention adopted **in this repository**, arrived at while re-validating
-   `bbe63e01`. It is **not** an adrkit rule and no adrkit ADR states it — a
-   record has been proposed upstream but not written, and it is the adrkit
-   maintainer's call whether it ever is. If one lands, cite its id here
-   instead of this paragraph. Until then, do not read this as upstream
-   guidance.
+   `bbe63e01`. It is **not** an adrkit rule. A record has since been drafted
+   upstream — adrkit ADR-0016, "Require every check to be observed failing
+   before it counts as coverage", proposed in
+   [mbeacom/adrkit#54](https://github.com/mbeacom/adrkit/pull/54) — but it is
+   an **unratified draft** and binds nothing: verified on that branch as
+   `status: draft`, `deciders: []`, `provenance.authoredBy: agent-drafted`,
+   with the PR open and unmerged, and its own first action item being "ratify
+   or reject". Cite it as "proposed in mbeacom/adrkit#54, unratified draft" if
+   you cite it at all; "adrkit requires this" will not be true unless and
+   until that record is `accepted` and merged. If that happens, replace this
+   paragraph with the record id.
 
 ### What was re-verified here vs. taken on trust
 
