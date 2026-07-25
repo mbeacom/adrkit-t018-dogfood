@@ -318,34 +318,49 @@ the existing `test-assert-managed-issue-body.sh`.
 
 | Field | Expected | Observed |
 |-------|----------|----------|
-| Pinned adrkit ref | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` | `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (confirmed via the run's own action-download log line) |
+| Pinned adrkit ref | `896391cc385798f7f08c5694f70acaf0342789e9` | `896391cc385798f7f08c5694f70acaf0342789e9` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@896391cc385798f7f08c5694f70acaf0342789e9'`) |
 | Fixture | `fixtures/fail-closed-invalid-corpus-dir` (plain file, not a directory) | (unchanged) |
 | `queue` step outcome | `failure` | `failure` |
 | `queue` step `issue-number` output | (empty/unset) | (empty/unset) |
 | Issue mutation | zero (before/after snapshot hashes equal) | zero — hashes equal, issue count unchanged at 1 |
 | Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | `success` |
 
-**Live run:** `29920390292` —
-<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/29920390292>
-— commit `2d7f6063b1d0d93f453138cf24a2bcd81aa287a6` (the `main` merge
-commit for PR #6) — conclusion: `success`. The `queue` step's own error
-output was:
+**Live run:** `30159430259` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30159430259>
+— branch `mbeacom-supreme-disco` (PR #7, the repin to `896391cc`) —
+conclusion: `success`. The `queue` step's own error output was:
 
 ```
 ##[error]adrkit queue: could not load the ADR corpus at 'fixtures/fail-closed-invalid-corpus-dir': ENOTDIR: not a directory, scandir '/home/runner/work/adrkit-t018-dogfood/adrkit-t018-dogfood/fixtures/fail-closed-invalid-corpus-dir'
 ```
 
 Before/after snapshot SHA-256 (canonicalized):
-`9b15bda8a202ec4bb9539f920ceb47f96b2844a4b46232c2a3a4465e579802d9` for
+`a6eef1edbd86f1acb441af6be587baf51ea25259ae2b4e776088b502db2a57b7` for
 both before and after (equal ⇒ zero mutation across `1` issue(s), the
-same `#3` managed queue issue, `updatedAt` unchanged). Uploaded
-evidence artifact SHA-256:
+same `#3` managed queue issue, `updatedAt` unchanged).
+
+The error message is byte-identical to the one produced under the previous
+pin, which is the expected result: `packages/ci/` is unchanged between
+`efef89b5` and `896391cc`, so the fail-closed boundary is literally the same
+compiled code.
+
+**Previous dispatch (superseded, retained for provenance):** run
+`29920390292` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/29920390292>
+— commit `2d7f6063b1d0d93f453138cf24a2bcd81aa287a6` (the `main` merge commit
+for PR #6) — conclusion: `success`, using the older pin
+`efef89b5d747ca175a1947f1ce2f4296dab54fa3`. Its before/after snapshot
+SHA-256 was `9b15bda8a202ec4bb9539f920ceb47f96b2844a4b46232c2a3a4465e579802d9`
+and its uploaded evidence artifact SHA-256 was
 `15e3c042fbda394a579de560756d51ea1ca075031df5d1b458ffd2f8006cb966`.
-Runner: `ubuntu-24.04` (image `20260714.240.1`, Actions runner
-`2.336.0`); `GITHUB_TOKEN` permissions were exactly `contents: read`,
-`issues: write`, `metadata: read` with secret source `Actions` (no PAT
-or repository/organization secret involved). Action versions:
-`actions/checkout@v4`, `actions/upload-artifact@v4`.
+Runner: `ubuntu-24.04` (image `20260714.240.1`, Actions runner `2.336.0`);
+`GITHUB_TOKEN` permissions were exactly `contents: read`, `issues: write`,
+`metadata: read` with secret source `Actions` (no PAT or
+repository/organization secret involved). Action versions:
+`actions/checkout@v4`, `actions/upload-artifact@v4`. The snapshot digest
+differs from the current run only because issue `#3`'s body (and therefore
+its `bodySha256`) legitimately changed in between, when `arb-queue.yml` was
+re-dispatched and updated the managed issue.
 
 **Limitations:** this demonstrates the Action's own fail-closed behavior on
 one deterministic invalid-input class (an unreadable `dir`), using only the
