@@ -949,6 +949,14 @@ reproductions the same way #39–#42 were.
    verify the tightened assertion actually *fires* against a corpus with a
    skipped file, not merely that it still passes against this one.
 
+   To be unambiguous about where that instruction comes from: it is a
+   convention adopted **in this repository**, arrived at while re-validating
+   `bbe63e01`. It is **not** an adrkit rule and no adrkit ADR states it — a
+   record has been proposed upstream but not written, and it is the adrkit
+   maintainer's call whether it ever is. If one lands, cite its id here
+   instead of this paragraph. Until then, do not read this as upstream
+   guidance.
+
 ### What was re-verified here vs. taken on trust
 
 **Re-verified by running the binary at `bbe63e01`:** all four defect fixes
