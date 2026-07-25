@@ -493,7 +493,7 @@ the governed corpus here was never mutated.
 | `adr evaluate` | All eleven Pass 0 rules run offline. `0015` (`one-way-door`) yields `routing: escalate [one-way-door]`; `0014` yields `expiry-sane: fail (info) — expiry-sane.past-or-equal`, consistent with the queue's `overdue` state for the same record. Absent snapshot backing reports `inert`, never a fabricated pass/fail. |
 | `adr queue` | Covered in detail above. Byte-identical at `bbe63e01`. |
 | `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). `adr --version` prints `0.2.0` and is now recorded by `scripts/validate-queue.sh` on every run. |
-| `@adrkit/mcp` | All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. |
+| `@adrkit/mcp` | **Original `896391cc` run only, not re-covered at `bbe63e01` except as noted.** All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. At `bbe63e01`, **only `get_decision_context` was re-driven** — see [MCP re-coverage](#mcp-re-coverage-get_decision_context-only). |
 | Determinism | `adr queue --format json` and `adr evaluate --json` each produced a single distinct SHA-256 across three consecutive runs. |
 
 ### Defects found — all four now fixed
@@ -747,13 +747,49 @@ The only intentional behavior change against this corpus is `adr check` /
 `adr explain`, documented under
 [Status-aware governance](#status-aware-governance-changes-what-check-and-explain-report).
 
+### MCP re-coverage (`get_decision_context` only)
+
+MCP deserves separate treatment here because it was the one surface that was
+*already correct* going into this fix. [#39](https://github.com/mbeacom/adrkit/issues/39)
+was framed as "MCP is status-aware, the CLI is not", and the fix resolved that
+by routing both through a shared `decisionBucketFor` in `@adrkit/core` — which
+means `packages/mcp/src/tools/get-decision-context.ts` was edited in the
+process. The risk is therefore asymmetric: the change could have fixed the CLI
+while perturbing the surface that already worked.
+
+It did not. `get_decision_context` was driven over stdio JSON-RPC against the
+same six-status synthetic corpus used for resolved defect 1, at **both** pins:
+
+| Pin | `governing` | `activeProposals` | `history` |
+|---|---|---|---|
+| `896391cc` | `0003` `[accepted]` | `0001` `[draft]`, `0002` `[proposed]` | `0004` `[rejected]`, `0005` `[superseded]`, `0006` `[deprecated]` |
+| `bbe63e01` | `0003` `[accepted]` | `0001` `[draft]`, `0002` `[proposed]` | `0004` `[rejected]`, `0005` `[superseded]`, `0006` `[deprecated]` |
+
+Identical across pins, and `adr check --json` at `bbe63e01` returns the same
+three buckets with the same members. So the shared function fixed the CLI
+without moving MCP, and the two surfaces now agree where they previously
+diverged — which is the actual claim [#39](https://github.com/mbeacom/adrkit/issues/39)
+was making.
+
+**Scope caveat.** Only `get_decision_context` was re-driven at `bbe63e01`. The
+other three tools (`search_decisions`, `get_decision`, `list_superseded`), the
+22-call sweep, the path-traversal rejection checks, and the read-only /
+local-only boundary evidence (`lsof`, mtimes, `git status`) are all from the
+original `896391cc` run and were **not** repeated. Nothing in the `bbe63e01`
+diff touches those paths, but that is an inference from the diff, not an
+observation — do not read the "What works" table's `@adrkit/mcp` row as
+re-verified at the current pin.
+
 ### The new warnings are not noisy against a realistic corpus
 
 [#41](https://github.com/mbeacom/adrkit/issues/41) added a
 `corpus-file-skipped` lint warning, which is the kind of change that can
-regress a clean corpus into a noisy one. It does not here — `adr lint` on this
-repository's corpus is byte-identical across the pins, still
-`checked 15 records, 0 errors, 0 warnings`.
+regress a clean corpus into a noisy one. This was treated as a hypothesis to
+falsify rather than a safe assumption — all 15 records here are top-level and
+correctly named, so the warning *should* not fire, but "should" was not good
+enough. Falsification attempt: `adr lint` on this repository's corpus is
+byte-identical across the pins, still
+`checked 15 records, 0 errors, 0 warnings`. The hypothesis held.
 
 It was also checked against the conventions real ADR directories carry.
 A corpus containing `README.md`, `template.md` and `index.md` alongside one
@@ -819,8 +855,9 @@ source of these changes and that issues #39–#42 are closed as completed; the
 internal claim that a single shared `decisionBucketFor` in `@adrkit/core` is
 what every surface routes through (the *behavior* was verified to agree across
 four surfaces, but agreement is evidence of a shared implementation, not proof
-of one); and adrkit's own test suite, which was not run as part of this
-validation.
+of one); the `@adrkit/mcp` coverage other than `get_decision_context` — see
+the scope caveat under [MCP re-coverage](#mcp-re-coverage-get_decision_context-only);
+and adrkit's own test suite, which was not run as part of this validation.
 
 ### Live governance comment (status-aware)
 
