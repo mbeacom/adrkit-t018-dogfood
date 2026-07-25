@@ -859,6 +859,25 @@ reproductions the same way #39–#42 were.
    deciders; … should be backfilled when known"` — advice to go find
    information that was present in the source file all along. Same class of
    bug as #40, one field over.
+
+   **Status:** fixed in [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52)
+   (open at the time of writing, not yet merged and **not** part of the
+   `bbe63e01` pin). Verified from the outside against that branch at
+   `5c54afb`: `* Deciders: @mbeacom, @octocat` now round-trips to
+   `["@mbeacom", "@octocat"]` with no finding.
+
+   One residual distinction was found while checking it and
+   [reported on the PR](https://github.com/mbeacom/adrkit/pull/52#issuecomment-5080016338):
+   entries that are real but not identity-formatted are dropped, and the
+   resulting record is indistinguishable from one whose source declared no
+   deciders at all. `* Deciders: Jane Smith, Bob Jones`, a placeholder like
+   `[list everyone involved in the decision]`, and a source with no
+   `* Deciders:` line all yield `deciders: []` plus the same
+   `has no deciders` message. That message is accurate for the third case and
+   inaccurate for the first — the source named two deciders and the importer
+   discarded them. It is the incomplete-versus-wrong distinction again, at
+   `info` severity and with `migrate` non-destructive, so nothing is lost,
+   only mis-described.
 2. **`adr queue` skips undiscoverable records as silently as `lint` used to.**
    ([mbeacom/adrkit#51](https://github.com/mbeacom/adrkit/issues/51))
    [#41](https://github.com/mbeacom/adrkit/issues/41) added
