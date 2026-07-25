@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: queue
-        uses: mbeacom/adrkit/packages/ci/queue@896391cc385798f7f08c5694f70acaf0342789e9
+        uses: mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b
         with:
           dir: docs/adr
       - name: Verify managed queue issue

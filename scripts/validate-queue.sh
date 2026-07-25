@@ -24,13 +24,20 @@
 set -euo pipefail
 
 # Pin: exact adrkit commit dogfooded by this repository. Currently the tip of
-# adrkit `main` as of 2026-07-25, which supersedes the original
-# specs/007-arb-queue merge commit efef89b5d747ca175a1947f1ce2f4296dab54fa3.
-# `packages/ci/` is byte-identical between the two, so this repin changes the
-# provenance of the evidence, not the Action's behavior.
+# adrkit `main` as of 2026-07-25 — the squash-merge of PR mbeacom/adrkit#45,
+# which closes the four defects (mbeacom/adrkit#39-#42) that this repository's
+# own dogfood run found. It supersedes 896391cc385798f7f08c5694f70acaf0342789e9.
+#
+# Unlike the previous repin, `packages/ci/` is NOT byte-identical across this
+# one: `packages/ci/src/comment.ts` changed and both committed bundles
+# (dist/index.js, dist/queue-action.js) were regenerated. `action.yml` is
+# unchanged. The corpus-load fail-closed boundary was re-probed directly
+# against the regenerated bundle rather than inferred — see README.md
+# ("Fail-closed evidence").
+#
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
 # commit").
-ADRKIT_REF="896391cc385798f7f08c5694f70acaf0342789e9"
+ADRKIT_REF="bbe63e017274f173dbb40eeaceccd17df346b32b"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 
@@ -78,6 +85,23 @@ echo "==> Building adrkit"
 ADR_CLI="${WORKDIR}/adrkit/packages/cli/dist/index.js"
 REPORT_JSON="${WORKDIR}/queue-report.json"
 
+# Record the binary's self-reported version alongside the pinned SHA. Before
+# adrkit bbe63e01 (mbeacom/adrkit#42) `adr --version` was an unknown command
+# that exited 2, so the SHA was the only available provenance. Asserting exit 0
+# and non-empty output here keeps that fix from silently regressing, without
+# pinning the literal version string — a legitimate upstream version bump
+# should not break this repository's CI.
+echo "==> Recording adr --version (regression check for mbeacom/adrkit#42)"
+if ! ADR_VERSION="$(bun "${ADR_CLI}" --version)"; then
+  echo "error: 'adr --version' exited non-zero; mbeacom/adrkit#42 has regressed" >&2
+  exit 1
+fi
+if [[ -z "${ADR_VERSION//[[:space:]]/}" ]]; then
+  echo "error: 'adr --version' exited 0 but printed nothing" >&2
+  exit 1
+fi
+echo "adr --version: ${ADR_VERSION}"
+
 echo "==> Running: adr queue --dir docs/adr --as-of ${AS_OF} --format json"
 bun "${ADR_CLI}" queue \
   --dir "${REPO_ROOT}/docs/adr" \
@@ -99,4 +123,4 @@ echo "==> adr lint --dir docs/adr"
 bun "${ADR_CLI}" lint --dir "${REPO_ROOT}/docs/adr"
 
 echo ""
-echo "Queue validation complete: adrkit@${ADRKIT_REF}, as-of ${AS_OF}."
+echo "Queue validation complete: adrkit@${ADRKIT_REF} (adr ${ADR_VERSION}), as-of ${AS_OF}."
