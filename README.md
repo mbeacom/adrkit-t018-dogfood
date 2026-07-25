@@ -839,6 +839,24 @@ reproductions the same way #39–#42 were.
    scope (`lint` + `migrate`), which is why it is recorded as an observation
    rather than a claimed defect in the fix.
 
+   **Forward dependency for the next repin.** Fixing
+   [#51](https://github.com/mbeacom/adrkit/issues/51) would change what the
+   managed queue issue renders for a corpus with skipped files, and this
+   repository asserts on that. Two things here are coupled to the current
+   behavior: `scripts/assert-managed-issue-body.sh` asserts the **absence** of
+   a `## Corpus Findings` section and that the summary reports
+   `0 corpus finding(s)`, and `scripts/assert-queue-report.ts` asserts
+   `totalCorpusFindings === 0` with an empty `corpusFindings` array. Those
+   assertions hold today and would continue to hold for *this* corpus, which
+   has no skipped files — but they are written as blanket invariants, not
+   scoped to "no skipped files", so they encode an assumption that a #51 fix
+   would invalidate for consumers generally. The upstream maintainer has
+   flagged that `CorpusFinding.severity` is currently a `'error'` literal
+   rather than a union, so surfacing a `warn`-severity finding there widens a
+   frozen v1 contract. Whoever performs the next repin should re-read both
+   assertion scripts before assuming they still express the intended
+   invariant.
+
 ### What was re-verified here vs. taken on trust
 
 **Re-verified by running the binary at `bbe63e01`:** all four defect fixes
@@ -870,9 +888,8 @@ change to this repository. The pull request that carried this repin
 governance Action posts a real, status-bucketed comment rather than a trivial
 one.
 
-Observed on that PR (run
-[`30163165966`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163165966),
-conclusion `success`), posted by `github-actions[bot]`:
+Observed on that PR, posted by `github-actions[bot]` and updated in place by
+each subsequent push:
 
 ```markdown
 <!-- adrkit:ci -->
@@ -890,6 +907,18 @@ These are not yet ratified and do not bind this change:
 - **0014** — Introduce asynchronous cache invalidation for payments settlement events _(proposed)_
   - via `path`: `src/payments/**`
 ```
+
+The comment body was byte-identical across all four of the PR's commits
+(governance runs
+[`30163165966`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163165966),
+[`30163223377`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163223377),
+[`30163283104`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163283104),
+[`30163595945`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30163595945)
+— all `success`), including across the commit that changed
+`src/payments/api/handler.ts` from adding an export to adding only a comment.
+That is the expected result: the governing set is a function of which *files*
+changed, not of what changed inside them, and the Action updates its own
+comment in place by marker rather than posting a new one each run.
 
 This is the live end-to-end counterpart to the local `renderComment`
 reproduction under resolved defect 1, and it matches that local prediction
