@@ -909,6 +909,24 @@ reproductions the same way #39–#42 were.
    scope (`lint` + `migrate`), which is why it is recorded as an observation
    rather than a claimed defect in the fix.
 
+   **Status:** fixed in [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52)
+   (open at the time of writing, not yet merged and **not** part of the
+   `bbe63e01` pin). Re-verified from the outside against that branch at
+   `ffdde26` using the original reproduction — the same undiscoverable
+   `proposed` `arb`-tier record now yields:
+
+   ```console
+   $ adr queue --dir docs/adr --as-of 2026-07-21 --format json
+   totalItems = 0, totalCorpusFindings = 1
+   corpusFindings = [{ "sourcePath": "docs/adr/migrate-the-ledger.md",
+                       "code": "corpus.file-skipped", "severity": "warn", … }]
+   ```
+
+   and the Markdown rendering now reports `1 corpus finding(s)` with a
+   `## Corpus Findings` table, where it previously reported
+   `0 corpus finding(s)` and `*No proposed records found.*` — the false
+   all-clear is gone.
+
    **Forward dependency for the next repin.** Fixing
    [#51](https://github.com/mbeacom/adrkit/issues/51) changes what the managed
    queue issue renders for a corpus with skipped files, and this repository
@@ -921,6 +939,13 @@ reproductions the same way #39–#42 were.
    which has no skipped files — but they are written as blanket invariants,
    not scoped to "no skipped files", so they encode an assumption the fix
    invalidates for consumers generally.
+
+   **That is now measured, not predicted.** Running this repository's real
+   corpus through the `#52` branch at `ffdde26`: `totalCorpusFindings` is
+   still `0`, `scripts/assert-queue-report.ts` passes **unmodified**, and the
+   QueueReport is byte-identical to the `bbe63e01` output at SHA-256
+   `716e21b7…`. So the next repin will not break CI — the tightening is a
+   correctness-of-intent change, not a repair.
 
    The fix's shape is now known:
    [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52) widens
@@ -948,6 +973,15 @@ reproductions the same way #39–#42 were.
    indistinguishable from a clean corpus. So whoever makes that change should
    verify the tightened assertion actually *fires* against a corpus with a
    skipped file, not merely that it still passes against this one.
+
+   **The case that makes it fire is already known, so there is no excuse for
+   skipping that step.** One `proposed` `arb`-tier record in a corpus
+   directory under a filename that does not match `<id>-<slug>.md` produces,
+   under #52, `totalCorpusFindings = 1` with a single `warn`-severity
+   `corpus.file-skipped` entry, and a rendered `## Corpus Findings` section
+   with a `1 corpus finding(s)` summary — tripping every one of the four
+   assertions listed above. Point the tightened versions at that corpus and
+   confirm they still reject it for the *right* reason before trusting them.
 
    To be unambiguous about where that instruction comes from: it is a
    convention adopted **in this repository**, arrived at while re-validating
