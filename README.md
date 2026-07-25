@@ -88,6 +88,18 @@ move.
 This is a full 40-character commit SHA, never a moving branch or tag. Do not
 change any pin in this repository to `@main`, `@v0`, or any other ref without
 re-running the full validation procedure below and updating this document.
+
+A concrete instance of why, observed while verifying an upstream record during
+this run: fetching a file from GitHub's contents API by **branch ref**
+(`?ref=<branch>`) returned a stale revision — a `200` with plausible, coherent
+content and nothing to indicate it was behind the branch head. Re-fetching the
+same path by **explicit commit SHA** returned the current 10,944-byte revision
+where the branch ref had served 10,384 bytes. The stale read was
+indistinguishable from a current one, and acting on it would have produced a
+confident, wrong conclusion. That is the same failure this pinning rule guards
+against, in a different mechanism: a moving ref can answer successfully and
+still not be showing you what you think you asked for.
+
 (The pre-existing Phase 3 `packages/ci@main` reference in
 [`.github/workflows/adr.yml`](.github/workflows/adr.yml) predates this pinning
 requirement and is left untouched from Phase 3; it governs PRs against this
