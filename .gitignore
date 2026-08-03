@@ -1,0 +1,6 @@
+
+# Pinned adrkit checkout created by the Spec Kit extension reference validation
+# workflow. Kept out of git so the "reference repo is unmodified" assertion in
+# scripts/validate-spec-kit-extension.sh stays meaningful rather than being
+# weakened to accommodate its own scaffolding.
+.adrkit-src/

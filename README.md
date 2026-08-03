@@ -151,6 +151,8 @@ previously read `checked: 3 governing, …`.
 | `scripts/snapshot-issues.sh` | CI-only script (needs `GH_TOKEN`): snapshots every issue (OPEN+CLOSED, excluding pull requests) as `{number, state, title, updatedAt, bodySha256}`. Run once before and once after the fail-closed Action dispatch. |
 | `scripts/assert-no-issue-mutation.sh` | Pure, network-free comparison of two snapshots produced by `snapshot-issues.sh`; fails unless they are byte-for-byte identical after canonicalization. Used by both `arb-queue-fail-closed.yml` (real data) and `test-assert-no-issue-mutation.sh` (fixtures). |
 | `scripts/test-assert-no-issue-mutation.sh` + `scripts/fixtures/mutation-*.json` | Local/CI unit test harness for `assert-no-issue-mutation.sh`: an identical (reordered) pair that must pass, and four pairs that each violate exactly one invariant (body changed, state changed, issue added, issue removed), with no GitHub API access required. |
+| `.github/workflows/spec-kit-extension.yml` | **Spec Kit extension** rung-2 validation: installs `@adrkit/spec-kit` from a pinned adrkit commit into a real Spec Kit project, at each upstream version the extension's manifest claims to support (`0.13.0`, `0.14.4`, `0.15.1`), and runs `scripts/validate-spec-kit-extension.sh`. Runs on PR, on `main`, weekly, and on demand. |
+| `scripts/validate-spec-kit-extension.sh` | Self-verifying, fail-closed assertions for the Spec Kit extension: install and rendering, the hook contract, packaging hygiene, behavior against this repo's real corpus, zero mutation, and four consumer-facing failure modes that must produce no side effect. 41 assertions per upstream version. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -332,6 +334,47 @@ As with everything else in this repository, `verify-managed-queue-issue.sh`
 is technical, owner-run evidence that the queue kernel/CLI/Action behave
 correctly — it is not, and does not claim to be, `specs/007-arb-queue`
 SC-004/T048 evidence. See the status boundary above.
+
+## Spec Kit extension reference validation (`spec-kit-extension.yml`)
+
+ADR-0014 **rung-2** evidence for `@adrkit/spec-kit`, the Spec Kit extension that
+puts adrkit's governing decisions inside the spec-driven plan loop.
+
+The extension is not published to npm at the time of writing, so this validation
+installs it the way a consumer would install it from source: check out adrkit at
+an immutable commit, then `specify extension add --dev` that directory into a
+freshly initialized Spec Kit project. The `adr` CLI it shells out to is the
+**published** `@adrkit/cli`, pinned by version — the surface a real consumer has.
+
+### Why a matrix
+
+The extension's manifest declares `speckit_version: ">=0.13.0,<0.16.0"`. That
+range is a claim, and a claim nobody re-checks is a claim that quietly stops
+being true. The matrix runs the full assertion set against the range's two
+endpoints and its midpoint (`0.13.0`, `0.14.4`, `0.15.1`), on every push and
+weekly, so upstream drift turns this red here rather than in someone's editor.
+
+### What it asserts (41 assertions per version)
+
+| Group | Proves |
+|---|---|
+| `PIN-*` | The adrkit checkout is at the pinned SHA, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
+| `INS-*` | The extension installs, and all three commands render for the agent. |
+| `HOOK-*` | The `after_plan` hook is registered, targets the read-only `check` command, and is `optional: true`. `HOOK-4` asserts **no** hook targets the writing `draft` command. |
+| `PKG-*` | The consumer receives no test suite, tsconfig, package.json, or node_modules; the scripts arrive executable; the rendered command points at the installed script path. |
+| `BEH-*` | Against this repository's real corpus: `context` names ADR `0001` for `src/payments/**` and the proposed ARB record `0015` for `src/orders/**`; `check` emits its marker and states when routing did not run. |
+| `MUT-*` | `check` and `context` leave the consuming project byte-identical, and this repository unmodified. |
+| `FC-*` | Four consumer-facing failure modes exit non-zero, name what is missing, and — for both `draft` paths — **write no record before failing**. |
+
+`BEH-*` deliberately asserts specific record ids rather than counts. "0 decisions
+govern this" and "I could not see the corpus" render as the same string, so a
+count-based assertion would pass in exactly the case worth catching.
+
+### Status boundary
+
+This is **rung-2 reference verification**: a maintainer-owned, isolated
+repository, not an external adopter. It does not make the extension
+`externally validated` (rung 3), and it does not make it `released`.
 
 ## Fail-closed evidence (invalid input, no write)
 
