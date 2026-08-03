@@ -1,0 +1,75 @@
+name: adrkit Spec Kit extension reference validation
+
+# ADR-0014 rung-2 evidence for the adrkit Spec Kit extension.
+#
+# Installs the extension from an immutable adrkit commit into a real Spec Kit
+# project, at every upstream version the extension's own manifest claims to
+# support, and asserts its behavior against this repository's real ADR corpus.
+#
+# This workflow is the self-verifying half of rung 2: it fails the run when
+# observed behavior diverges from expected, rather than producing a log for a
+# human to interpret. The matrix is what continuously substantiates the
+# extension's `speckit_version: ">=0.13.0,<0.16.0"` claim — if upstream breaks
+# the extension on any pinned version, this goes red.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+  schedule:
+    # Weekly, so upstream drift surfaces here rather than in a consumer's repo.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  # Immutable adrkit commit under test. Bumping this is a re-verification.
+  ADRKIT_REF: "61f591086085e1d6fcd4d8636d3364a9a949ddd6"
+  # The published CLI surface a real consumer installs.
+  ADRKIT_CLI_VERSION: "0.3.0"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The endpoints and midpoint of the extension's declared support range.
+        specify_version: ["0.13.0", "0.14.4", "0.15.1"]
+    steps:
+      - name: Check out this reference repository
+        uses: actions/checkout@v4
+
+      - name: Check out adrkit at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: mbeacom/adrkit
+          ref: ${{ env.ADRKIT_REF }}
+          path: .adrkit-src
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the extension against spec-kit ${{ matrix.specify_version }}
+        env:
+          SPECIFY_VERSION: ${{ matrix.specify_version }}
+          ADRKIT_SRC: ${{ github.workspace }}/.adrkit-src
+          EVIDENCE_OUT: ${{ runner.temp }}/evidence-${{ matrix.specify_version }}.md
+        run: ./scripts/validate-spec-kit-extension.sh
+
+      - name: Upload expected-vs-observed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-kit-extension-evidence-${{ matrix.specify_version }}
+          path: ${{ runner.temp }}/evidence-${{ matrix.specify_version }}.md
+          if-no-files-found: warn
