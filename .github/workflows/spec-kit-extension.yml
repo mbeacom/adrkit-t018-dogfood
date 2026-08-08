@@ -2,9 +2,9 @@ name: adrkit Spec Kit extension reference validation
 
 # ADR-0014 rung-2 evidence for the adrkit Spec Kit extension.
 #
-# Installs the extension from an immutable adrkit commit into a real Spec Kit
-# project, at every upstream version the extension's own manifest claims to
-# support, and asserts its behavior against this repository's real ADR corpus.
+# Installs the extension from its published, release-backed artifact into a real
+# Spec Kit project, at every upstream version the extension's own manifest claims
+# to support, and asserts its behavior against this repository's real ADR corpus.
 #
 # This workflow is the self-verifying half of rung 2: it fails the run when
 # observed behavior diverges from expected, rather than producing a log for a
@@ -25,8 +25,15 @@ permissions:
   contents: read
 
 env:
-  # Immutable adrkit commit under test. Bumping this is a re-verification.
-  ADRKIT_REF: "61f591086085e1d6fcd4d8636d3364a9a949ddd6"
+  # The published extension artifact under test — the release asset a consumer
+  # downloads, not a source tree and not the npm tarball (the two differ; the
+  # npm tarball ships package.json, the release asset does not). The sha256 is
+  # what makes the pin immutable: the script verifies it before installing
+  # anything. Bumping any of these three is a re-verification.
+  ADRKIT_EXT_TAG: "spec-kit-v0.1.2"
+  ADRKIT_EXT_VERSION: "0.1.2"
+  ADRKIT_EXT_URL: "https://github.com/mbeacom/adrkit/releases/download/spec-kit-v0.1.2/adrkit.zip"
+  ADRKIT_EXT_SHA256: "4916a647c939da477848501468409179b9f6c1df70e5fc24ee265b92e9872500"
   # The published CLI surface a real consumer installs.
   ADRKIT_CLI_VERSION: "0.4.0"
 
@@ -42,13 +49,6 @@ jobs:
       - name: Check out this reference repository
         uses: actions/checkout@v4
 
-      - name: Check out adrkit at the pinned commit
-        uses: actions/checkout@v4
-        with:
-          repository: mbeacom/adrkit
-          ref: ${{ env.ADRKIT_REF }}
-          path: .adrkit-src
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -62,7 +62,6 @@ jobs:
       - name: Validate the extension against spec-kit ${{ matrix.specify_version }}
         env:
           SPECIFY_VERSION: ${{ matrix.specify_version }}
-          ADRKIT_SRC: ${{ github.workspace }}/.adrkit-src
           EVIDENCE_OUT: ${{ runner.temp }}/evidence-${{ matrix.specify_version }}.md
         run: ./scripts/validate-spec-kit-extension.sh
 

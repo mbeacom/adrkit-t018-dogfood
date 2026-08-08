@@ -340,11 +340,15 @@ SC-004/T048 evidence. See the status boundary above.
 ADR-0014 **rung-2** evidence for `@adrkit/spec-kit`, the Spec Kit extension that
 puts adrkit's governing decisions inside the spec-driven plan loop.
 
-The extension is not published to npm at the time of writing, so this validation
-installs it the way a consumer would install it from source: check out adrkit at
-an immutable commit, then `specify extension add --dev` that directory into a
-freshly initialized Spec Kit project. The `adr` CLI it shells out to is the
-**published** `@adrkit/cli`, pinned by version — the surface a real consumer has.
+The upstream Spec Kit catalog entry has not landed yet, so the closest thing to
+a consumer install is `specify extension add adrkit --from <URL>` against the
+**release asset** — `adrkit.zip` from the `spec-kit-v0.1.2` GitHub release,
+pinned by sha256. That asset, not a source checkout and not the npm tarball, is
+the artifact under test: it is what the download path actually delivers, and its
+contents differ from the npm tarball (the tarball ships `package.json`; the
+asset does not — which is why the `PKG-*` absence assertions now assert about
+what a consumer receives rather than about a build tree). The `adr` CLI it
+shells out to is the **published** `@adrkit/cli`, pinned by version.
 
 ### Why a matrix
 
@@ -358,7 +362,7 @@ weekly, so upstream drift turns this red here rather than in someone's editor.
 
 | Group | Proves |
 |---|---|
-| `PIN-*` | The adrkit checkout is at the pinned SHA, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
+| `PIN-*` | The downloaded release asset matches the pinned sha256 — checked **before** anything is installed, so a mismatch fails closed with no side effect — the installed manifest declares the pinned extension version, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
 | `INS-*` | The extension installs, and all three commands render for the agent. |
 | `HOOK-*` | The `after_plan` hook is registered, targets the read-only `check` command, and is `optional: true`. `HOOK-4` asserts **no** hook targets the writing `draft` command. |
 | `PKG-*` | The consumer receives no test suite, tsconfig, package.json, or node_modules; the scripts arrive executable; the rendered command points at the installed script path. |
