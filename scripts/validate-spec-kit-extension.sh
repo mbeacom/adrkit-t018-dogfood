@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Reference validation for the adrkit Spec Kit extension (ADR-0014 rung 2).
 #
-# Installs the extension from a pinned, immutable adrkit commit into a real
+# Downloads the extension's published release asset, verifies it against a
+# pinned sha256 before it is allowed to touch anything, installs it into a real
 # Spec Kit project at a pinned upstream version, then asserts its behavior
 # against this repository's real ADR corpus.
 #
@@ -14,10 +15,12 @@
 # effect before failing.
 set -euo pipefail
 
-ADRKIT_REF="${ADRKIT_REF:?ADRKIT_REF (immutable adrkit commit SHA) is required}"
 SPECIFY_VERSION="${SPECIFY_VERSION:?SPECIFY_VERSION is required}"
 ADRKIT_CLI_VERSION="${ADRKIT_CLI_VERSION:?ADRKIT_CLI_VERSION is required}"
-ADRKIT_SRC="${ADRKIT_SRC:?ADRKIT_SRC (path to the pinned adrkit checkout) is required}"
+ADRKIT_EXT_TAG="${ADRKIT_EXT_TAG:?ADRKIT_EXT_TAG (extension release tag) is required}"
+ADRKIT_EXT_VERSION="${ADRKIT_EXT_VERSION:?ADRKIT_EXT_VERSION (version the artifact must declare) is required}"
+ADRKIT_EXT_URL="${ADRKIT_EXT_URL:?ADRKIT_EXT_URL (release asset URL) is required}"
+ADRKIT_EXT_SHA256="${ADRKIT_EXT_SHA256:?ADRKIT_EXT_SHA256 (pinned asset digest) is required}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
@@ -53,12 +56,49 @@ assert_contains() { # id, expectation, needle, haystack
 	fi
 }
 
+emit_evidence() {
+	{
+		echo "# Expected vs observed — spec-kit ${SPECIFY_VERSION}, adrkit extension ${ADRKIT_EXT_TAG} (sha256 ${ADRKIT_EXT_SHA256})"
+		echo
+		echo "| id | expectation | expected | observed | outcome |"
+		echo "|---|---|---|---|---|"
+		for row in "${ROWS[@]}"; do
+			IFS='|' read -r id what expected observed outcome <<<"$row"
+			echo "| \`$id\` | $what | \`$expected\` | \`$observed\` | **$outcome** |"
+		done
+	} >"${EVIDENCE_OUT:-$WORK/evidence.md}"
+}
+
+ASSET="$WORK/adrkit.zip"
+
 # --------------------------------------------------------------------------
 # Pinned inputs, verified rather than assumed.
+#
+# PIN-1 is the load-bearing one and it runs first: the artifact is only allowed
+# to reach `specify extension add` after its digest matches the pin. A mismatch
+# aborts here, before any install side effect.
+#
+# The download is routed through an assertion rather than left to `set -e`. A
+# 404 or a network failure is a real result about the pinned artifact, and it
+# should be recorded as a FAIL row in the evidence table like everything else —
+# not vanish into a bare non-zero exit with no evidence written.
 # --------------------------------------------------------------------------
 echo "== pinned inputs =="
-OBSERVED_REF="$(git -C "$ADRKIT_SRC" rev-parse HEAD)"
-assert_eq "PIN-1" "adrkit checkout is at the pinned commit" "$ADRKIT_REF" "$OBSERVED_REF"
+curl -fsSL --retry 3 -o "$ASSET" "$ADRKIT_EXT_URL" && CURL_RC=0 || CURL_RC=$?
+assert_eq "PIN-0" "release asset downloads from the pinned URL" "0" "$CURL_RC"
+
+if [ "$CURL_RC" -ne 0 ]; then
+	OBSERVED_SHA="UNAVAILABLE (download failed, curl exit $CURL_RC)"
+else
+	OBSERVED_SHA="$(sha256sum "$ASSET" | cut -d' ' -f1)"
+fi
+assert_eq "PIN-1" "release asset matches the pinned sha256 (checked before install)" \
+	"$ADRKIT_EXT_SHA256" "$OBSERVED_SHA"
+if [ "$ADRKIT_EXT_SHA256" != "$OBSERVED_SHA" ]; then
+	emit_evidence
+	echo "REFERENCE VALIDATION FAILED: pinned artifact unusable; refusing to install" >&2
+	exit 1
+fi
 
 python3 -m venv "$VENV" >/dev/null
 "$VENV/bin/pip" install --quiet "specify-cli @ git+https://github.com/github/spec-kit@v${SPECIFY_VERSION}"
@@ -69,9 +109,6 @@ npm install --silent --prefix "$WORK/npm" "@adrkit/cli@${ADRKIT_CLI_VERSION}" >/
 export PATH="$WORK/npm/node_modules/.bin:$PATH"
 assert_eq "PIN-3" "adr CLI is the pinned published version" "$ADRKIT_CLI_VERSION" "$(adr --version 2>&1 | tr -d '\r')"
 
-EXT_SRC="$ADRKIT_SRC/packages/adapters/spec-kit"
-assert_eq "PIN-4" "extension source is present at the pinned ref" "true" "$([ -f "$EXT_SRC/extension.yml" ] && echo true || echo false)"
-
 # --------------------------------------------------------------------------
 # Install into a real Spec Kit project.
 # --------------------------------------------------------------------------
@@ -81,10 +118,16 @@ git -C "$PROJECT" init -q .
 (cd "$PROJECT" && "$SPECIFY" init --here --integration copilot --script sh --force --ignore-agent-tools >/dev/null 2>&1)
 assert_eq "INS-1" "Spec Kit project initialized" "true" "$([ -d "$PROJECT/.specify" ] && echo true || echo false)"
 
-ADD_OUT="$(cd "$PROJECT" && "$SPECIFY" extension add --dev "$EXT_SRC" 2>&1)" || true
-assert_contains "INS-2" "extension installs cleanly" "Extension installed successfully" "$ADD_OUT"
+# Install from the release asset over HTTPS — the path a real consumer takes
+# while the upstream catalog entry is pending. `--from` is default-deny: it
+# prints an untrusted-source panel and calls typer.confirm(default=False), so
+# with no TTY the install aborts unless stdin supplies the answer.
+ADD_OUT="$(cd "$PROJECT" && printf 'y\n' | "$SPECIFY" extension add adrkit --from "$ADRKIT_EXT_URL" 2>&1)" || true
+assert_contains "INS-2" "extension installs cleanly from the release asset" "Extension installed successfully" "$ADD_OUT"
 
 INSTALLED="$PROJECT/.specify/extensions/adrkit"
+assert_contains "PIN-4" "installed manifest declares the pinned extension version" \
+	"version: \"$ADRKIT_EXT_VERSION\"" "$(cat "$INSTALLED/extension.yml")"
 for cmd in context check draft; do
 	assert_eq "INS-3.$cmd" "command speckit.adrkit.$cmd rendered for the agent" "true" \
 		"$([ -f "$PROJECT/.github/agents/speckit.adrkit.$cmd.agent.md" ] && echo true || echo false)"
@@ -112,7 +155,9 @@ for unwanted in test tsconfig.json package.json node_modules; do
 		"$([ -e "$INSTALLED/$unwanted" ] && echo present || echo absent)"
 done
 for script in adrkit-lib.sh context.sh check.sh draft.sh; do
-	assert_eq "PKG-x-$script" "$script installed and executable" "true" \
+	assert_eq "PKG-p-$script" "$script installed" "true" \
+		"$([ -f "$INSTALLED/scripts/$script" ] && echo true || echo false)"
+	assert_eq "PKG-x-$script" "$script is executable" "true" \
 		"$([ -x "$INSTALLED/scripts/$script" ] && echo true || echo false)"
 done
 assert_contains "PKG-ref" "rendered command points at the installed script path" \
@@ -145,6 +190,35 @@ CHK_OUT="$(run_in_project sh "$INSTALLED/scripts/check.sh" src/payments/api.ts 2
 assert_eq "BEH-5" "check exits 0 against a clean corpus" "0" "$CHK_RC"
 assert_contains "BEH-6" "check emits its section marker" "==> adrkit:check" "$CHK_OUT"
 assert_contains "BEH-7" "check announces that routing did not run without a snapshot" "no ADRKIT_SNAPSHOT configured" "$CHK_OUT"
+
+# --------------------------------------------------------------------------
+# Invocation, exactly as rendered.
+#
+# Every BEH-* assertion above runs the scripts as `sh <path>`, which succeeds
+# whether or not the installed file carries its executable bit. The agent is
+# not told to do that. The command markdown says `Run {SCRIPT}`, and spec-kit
+# substitutes a bare path — so the instruction an agent actually follows is a
+# direct execution. A `sh`-mediated harness therefore passes on an install the
+# consumer cannot use.
+#
+# These assertions close that gap by running the path the rendered command
+# names, the way it says to run it. `scripts: sh:` in the command frontmatter
+# selects the POSIX-shell *variant* of the script (as opposed to `ps`); it is
+# not an instruction to invoke through the `sh` binary.
+# --------------------------------------------------------------------------
+echo "== invocation as rendered =="
+RENDERED="$PROJECT/.github/agents/speckit.adrkit.check.agent.md"
+RENDERED_PATH="$(grep -oE '\.specify/extensions/adrkit/scripts/check\.sh' "$RENDERED" | head -1)"
+assert_eq "INV-1" "rendered command names the installed check script" \
+	".specify/extensions/adrkit/scripts/check.sh" "$RENDERED_PATH"
+
+INV_RC=0
+run_in_project "$PROJECT/$RENDERED_PATH" src/payments/api.ts >/dev/null 2>&1 || INV_RC=$?
+assert_eq "INV-2" "the rendered check path executes directly, as the agent is instructed to run it" "0" "$INV_RC"
+
+INV_CTX_RC=0
+run_in_project "$INSTALLED/scripts/context.sh" src/payments/api.ts >/dev/null 2>&1 || INV_CTX_RC=$?
+assert_eq "INV-3" "the context script executes directly too" "0" "$INV_CTX_RC"
 
 # --------------------------------------------------------------------------
 # Mutation. The hook can fire check unattended, so it must touch nothing.
@@ -192,16 +266,7 @@ assert_eq "FC-4c" "draft wrote no record when the plan was missing" "$CORPUS_BEF
 # --------------------------------------------------------------------------
 # Machine-readable evidence for the tracked index.
 # --------------------------------------------------------------------------
-{
-	echo "# Expected vs observed — spec-kit ${SPECIFY_VERSION}, adrkit ${ADRKIT_REF}"
-	echo
-	echo "| id | expectation | expected | observed | outcome |"
-	echo "|---|---|---|---|---|"
-	for row in "${ROWS[@]}"; do
-		IFS='|' read -r id what expected observed outcome <<<"$row"
-		echo "| \`$id\` | $what | \`$expected\` | \`$observed\` | **$outcome** |"
-	done
-} >"${EVIDENCE_OUT:-$WORK/evidence.md}"
+emit_evidence
 
 echo
 echo "assertions: ${#ROWS[@]}, failures: $FAILURES"
