@@ -19,12 +19,12 @@ name: "Copilot Setup Steps"
 #   * `npx` still performs its own resolution at launch. Pre-populating the cache
 #     makes that resolution likely to be served locally; it does not make the
 #     server runnable with no network at all, and this file does not claim it
-#     does.
-#   * The integrity check below verifies the tarball this workflow downloads. It
-#     does not verify whatever npm later hands to `npx`. The binding check on
-#     that -- tarball sha512, plus a byte-level diff of the package's src/
-#     against the pinned adrkit commit -- lives in scripts/validate-mcp.sh and
-#     runs in .github/workflows/mcp-validation.yml.
+#     does. The integrity check below covers the artifact npm resolves *during
+#     this workflow run*, not a later re-resolution at agent launch time.
+#   * The binding provenance check -- tarball sha512, plus a byte-level diff of
+#     the package's src/ against the pinned adrkit commit -- lives in
+#     scripts/validate-mcp.sh and runs in .github/workflows/mcp-validation.yml.
+#     This workflow is a fast gate, not a substitute for it.
 #
 # The pinned version and integrity below are duplicated from
 # scripts/validate-mcp.sh, which is the authority for both. Keep them in sync
@@ -59,37 +59,52 @@ jobs:
           node-version: "22"
 
       - name: Verify and cache the pinned MCP server
-        # Order matters: verify first, install second. The integrity check gates
-        # the install, so a re-pointed or substituted tarball fails here --
-        # visibly, in the session log -- rather than silently becoming the code
-        # an agent runs.
+        # Order matters: populate, verify, then install the verified file.
         #
-        # `npm install` rather than `npm cache add`: the latter caches only the
-        # top-level tarball, leaving @adrkit/core, @modelcontextprotocol/server,
-        # and zod to be fetched at launch. Installing resolves and caches the
-        # whole closure, which is what actually has to be present for the server
-        # to start.
+        # An earlier version of this step verified a tarball fetched with `curl`
+        # and then ran `npm install "@adrkit/mcp@0.4.0"`, which performs its own
+        # registry resolution -- so the bytes that were checked were never the
+        # bytes that were installed, and a re-point between the two commands
+        # would have defeated the check entirely. `npm pack` is used instead
+        # because it emits exactly what npm itself resolves and serves, so
+        # hashing its output verifies the artifact that actually lands in the
+        # cache and in the install below.
         env:
           EXPECTED_SHA512: "sha512-WhoLbC1w4GgAmli3ZO1SesKQYKHWI0P/Eq1QD8apTtaW34JlthXlueql30tJtV9lMuTuIhGs2AAj3qd4LHHwjA=="
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
-          tarball="$workdir/mcp.tgz"
-          curl -fsSL -o "$tarball" \
-            "https://registry.npmjs.org/@adrkit/mcp/-/mcp-0.4.0.tgz"
+
+          # Populates the npm cache entry that the `npx` in the MCP
+          # configuration will later resolve against.
+          npm cache add "@adrkit/mcp@0.4.0"
+
+          # Materializes what npm resolves for that spec, so the integrity check
+          # below applies to the served artifact rather than to a side-channel
+          # download.
+          npm pack "@adrkit/mcp@0.4.0" --pack-destination "$workdir" >/dev/null
+          tarball="$workdir/adrkit-mcp-0.4.0.tgz"
+
           observed="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
           if [[ "$observed" != "$EXPECTED_SHA512" ]]; then
             echo "error: @adrkit/mcp@0.4.0 integrity mismatch" >&2
             echo "  expected: $EXPECTED_SHA512" >&2
             echo "  observed: $observed" >&2
+            echo "npm resolved bytes this repository has not verified." >&2
             exit 1
           fi
-          echo "integrity ok: @adrkit/mcp@0.4.0"
+          echo "integrity ok: @adrkit/mcp@0.4.0 (as resolved by npm)"
 
-          # Populates the npm cache with the package and everything it needs, so
-          # the `npx` in the MCP configuration resolves locally.
+          # Installed from the verified local file, not by name, so the binary
+          # smoke-tested below is provably the artifact just checked. npm still
+          # resolves and caches the dependency closure, which is the point of
+          # installing rather than only caching the top-level tarball.
           npm install --no-audit --no-fund \
-            --prefix "$workdir/install" "@adrkit/mcp@0.4.0"
-          "$workdir/install/node_modules/.bin/adrkit-mcp" --help >/dev/null 2>&1 \
-            || true
+            --prefix "$workdir/install" "$tarball"
+
+          bin="$workdir/install/node_modules/.bin/adrkit-mcp"
+          if [[ ! -x "$bin" ]]; then
+            echo "error: expected the adrkit-mcp binary at $bin" >&2
+            exit 1
+          fi
           echo "cached @adrkit/mcp@0.4.0 and its dependency closure"

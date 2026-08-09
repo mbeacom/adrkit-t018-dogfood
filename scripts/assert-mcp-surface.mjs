@@ -10,9 +10,15 @@
 // agents in this repository are told.
 //
 // Deliberate properties:
-//   * No adrkit source is built. The server is launched exactly the way the
-//     checked-in configs launch it (`npx -y @adrkit/mcp@<pin>`), so what is
-//     under test is the published artifact an agent actually runs.
+//   * No adrkit source is built, and the server is not launched through `npx`.
+//     validate-mcp.sh installs the sha512-verified tarball and passes the
+//     resulting binary path here, which is spawned directly. This is
+//     deliberately NOT byte-identical to how the checked-in configs launch the
+//     server: they invoke `npx`, and the two Copilot configs omit `--cwd`. The
+//     tradeoff is intentional -- re-resolving by name could execute a cached or
+//     hoisted same-version copy, and no version-string assertion can tell that
+//     apart from the artifact that was actually verified. What is shared with
+//     the configs is the package, the `--dir`, and the stdio transport.
 //   * Expected values are literals, not recomputed from the corpus. A check that
 //     derives its expectation from the same source it validates cannot fail.
 //   * Tool input validation surfaces as an `isError: true` *result*, not a
@@ -183,9 +189,29 @@ class McpClient {
 
   async close() {
     this.#closing = true;
+    // Graceful first. SIGTERM immediately after ending stdin can truncate
+    // whatever the server was still writing, which would hide exactly the
+    // late-shutdown stray output the stdout assertion is meant to catch. The
+    // server exits on its own when stdin closes; SIGTERM is only a fallback for
+    // one that does not.
     this.#child.stdin.end();
-    this.#child.kill();
-    await once(this.#child, 'close').catch(() => {});
+
+    const exited = once(this.#child, 'close');
+    const killTimer = setTimeout(() => this.#child.kill(), 5_000);
+    try {
+      await exited;
+    } catch {
+      // Already gone; nothing to wait for.
+    } finally {
+      clearTimeout(killTimer);
+    }
+
+    // A trailing fragment with no newline is still bytes on a protocol-only
+    // stream, so it counts as a violation rather than being discarded.
+    const trailing = this.#buffer.trim();
+    if (trailing) {
+      this.protocolViolations.push(`unterminated trailing output: ${trailing.slice(0, 200)}`);
+    }
   }
 }
 
@@ -473,12 +499,17 @@ async function main() {
     });
   }
 
+  // Closed BEFORE the stdout assertion below. Node's `close` event fires after
+  // the child's stdio streams have closed, so waiting here means the assertion
+  // sees the complete stream. Evaluated while the server was still running, it
+  // would miss anything emitted after the final response or during shutdown --
+  // exactly where stray output is most likely.
+  await client.close();
+
   // stdout is reserved for JSON-RPC frames. Anything else on it would corrupt a
   // real client's stream, so unparseable or non-2.0 frames are a failure rather
   // than something to skip past.
   assert('MCP-28', 'stdout carried only well-formed JSON-RPC 2.0 frames', [], client.protocolViolations);
-
-  await client.close();
 
   for (const check of checks) {
     console.log(`${check.ok ? 'ok  ' : 'FAIL'} ${check.id}  ${check.description}`);

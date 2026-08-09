@@ -305,9 +305,9 @@ if (setupSteps !== undefined) {
 
   // Catches the repin mistake of updating one literal and not the other. Two
   // forms carry a version here and both must be swept: the npm spec, and the
-  // registry tarball URL, whose path is `/@adrkit/mcp/-/mcp-0.4.0.tgz` -- the
-  // version there is not adjacent to the package name, so a single pattern
-  // anchored on the package name misses it.
+  // packed tarball filename `adrkit-mcp-0.4.0.tgz` -- the version there is not
+  // adjacent to the package spec, so a single pattern anchored on it misses
+  // that occurrence.
   const mentioned = [
     ...new Set([
       ...[...active.matchAll(/@adrkit\/mcp@(\d+\.\d+\.\d+)/g)].map((m) => m[1]),
@@ -326,7 +326,7 @@ if (setupSteps !== undefined) {
   // to be present in executable content.
   assert(
     'SETUP-SWEEP-NONVACUOUS',
-    `${SETUP_STEPS_PATH} contains both a pinned spec and a pinned tarball URL`,
+    `${SETUP_STEPS_PATH} contains both a pinned spec and a pinned tarball filename`,
     { spec: true, tarball: true },
     {
       spec: /@adrkit\/mcp@\d+\.\d+\.\d+/.test(active),
