@@ -358,14 +358,14 @@ being true. The matrix runs the full assertion set against the range's two
 endpoints and its midpoint (`0.13.0`, `0.14.4`, `0.15.1`), on every push and
 weekly, so upstream drift turns this red here rather than in someone's editor.
 
-### What it asserts (41 assertions per version)
+### What it asserts (45 assertions per version)
 
 | Group | Proves |
 |---|---|
 | `PIN-*` | The downloaded release asset matches the pinned sha256 — checked **before** anything is installed, so a mismatch fails closed with no side effect — the installed manifest declares the pinned extension version, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
 | `INS-*` | The extension installs, and all three commands render for the agent. |
 | `HOOK-*` | The `after_plan` hook is registered, targets the read-only `check` command, and is `optional: true`. `HOOK-4` asserts **no** hook targets the writing `draft` command. |
-| `PKG-*` | The consumer receives no test suite, tsconfig, package.json, or node_modules; the scripts arrive executable; the rendered command points at the installed script path. |
+| `PKG-*` | The consumer receives no test suite, tsconfig, package.json, or node_modules; the four scripts arrive; the rendered command points at the installed script path. `PKG-x-*` asserts the executable bit **in both directions**: set on spec-kit >= 0.14.4, and *not* set on 0.13.0 — see the exec-bit boundary below. |
 | `BEH-*` | Against this repository's real corpus: `context` names ADR `0001` for `src/payments/**` and the proposed ARB record `0015` for `src/orders/**`; `check` emits its marker and states when routing did not run. |
 | `MUT-*` | `check` and `context` leave the consuming project byte-identical, and this repository unmodified. |
 | `FC-*` | Four consumer-facing failure modes exit non-zero, name what is missing, and — for both `draft` paths — **write no record before failing**. |
@@ -373,6 +373,26 @@ weekly, so upstream drift turns this red here rather than in someone's editor.
 `BEH-*` deliberately asserts specific record ids rather than counts. "0 decisions
 govern this" and "I could not see the corpus" render as the same string, so a
 count-based assertion would pass in exactly the case worth catching.
+
+### The exec-bit boundary (spec-kit 0.13.0)
+
+Switching to the release asset surfaced a real upstream defect that the previous
+`--dev` install could not see, because copying a directory preserves modes and
+extracting a zip does not.
+
+spec-kit 0.13.0 installs a zip via `zf.extractall()` and never restores Unix
+modes, so a bundled `*.sh` lands non-executable. 0.14.4 fixed this by calling
+`ensure_executable_scripts` after extraction — its source comment names exactly
+this failure. The extension still works on 0.13.0, because its commands invoke
+scripts as `sh: scripts/check.sh` rather than executing them directly, which is
+why every `BEH-*` assertion passes there.
+
+`PKG-x-*` therefore asserts the expectation **in both directions** rather than
+skipping 0.13.0: executable on >= 0.14.4, non-executable on 0.13.0. A skip would
+stop testing; a two-directional assertion keeps the defect mechanically pinned,
+so the matrix goes red if upstream backports the fix or regresses it later.
+`PKG-p-*` asserts the four scripts are present on every version regardless of
+mode, so nothing about their delivery goes unchecked.
 
 ### Status boundary
 

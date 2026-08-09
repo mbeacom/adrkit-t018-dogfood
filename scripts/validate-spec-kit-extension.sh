@@ -129,9 +129,22 @@ for unwanted in test tsconfig.json package.json node_modules; do
 	assert_eq "PKG-$unwanted" "development-only '$unwanted' not shipped to the consumer" "absent" \
 		"$([ -e "$INSTALLED/$unwanted" ] && echo present || echo absent)"
 done
+# Exec bits are a spec-kit version boundary, not an extension property. The zip
+# install path in 0.13.0 calls `zf.extractall()` and never restores Unix modes,
+# so a bundled *.sh lands non-executable; 0.14.4 fixed it by calling
+# `ensure_executable_scripts` after extraction, with a comment naming exactly
+# this defect. So the expectation is asserted in both directions rather than
+# skipped on 0.13.0 — if upstream ever backports the fix, or regresses it after
+# 0.14.4, this goes red either way.
+case "$SPECIFY_VERSION" in
+0.13.0) EXPECT_EXEC="false" ;;
+*) EXPECT_EXEC="true" ;;
+esac
 for script in adrkit-lib.sh context.sh check.sh draft.sh; do
-	assert_eq "PKG-x-$script" "$script installed and executable" "true" \
+	assert_eq "PKG-x-$script" "$script installed; executable iff spec-kit restores zip modes (>=0.14.4)" "$EXPECT_EXEC" \
 		"$([ -x "$INSTALLED/scripts/$script" ] && echo true || echo false)"
+	assert_eq "PKG-p-$script" "$script present regardless of mode" "true" \
+		"$([ -f "$INSTALLED/scripts/$script" ] && echo true || echo false)"
 done
 assert_contains "PKG-ref" "rendered command points at the installed script path" \
 	".specify/extensions/adrkit/scripts/check.sh" "$(cat "$PROJECT/.github/agents/speckit.adrkit.check.agent.md")"
