@@ -1,0 +1,38 @@
+{
+  "$comment": [
+    "Canonical MCP configuration for GitHub Copilot cloud agent and Copilot code review.",
+    "",
+    "THIS FILE IS NOT READ BY ANYTHING AT RUNTIME. The repository-level cloud-agent MCP",
+    "configuration lives in repository settings on GitHub.com (Settings > Copilot > MCP",
+    "servers) and there is no supported repository file or REST API that sets it. This",
+    "file is the version-controlled source of truth for what SHOULD be pasted there, so",
+    "that the setting is reviewable, diffable, and attributable to a commit instead of",
+    "existing only as unversioned UI state.",
+    "",
+    "To apply: copy the mcpServers object below (without these $comment keys, which are",
+    "not part of the schema) into Settings > Copilot > MCP servers, and save.",
+    "",
+    "Pin discipline: the version below is exact and must stay in agreement with the",
+    "adrkit commit pinned by scripts/validate-queue.sh. Never use @latest or a floating",
+    "range here -- see README.md, 'Pinned adrkit commit'. scripts/validate-mcp.sh fails",
+    "the build when this file, .vscode/mcp.json, and .copilot/mcp-config.json disagree.",
+    "",
+    "Tool allowlist: the four tools are enumerated rather than using ['*']. Copilot uses",
+    "MCP tools autonomously without asking for approval, so the allowlist is a real",
+    "boundary, and enumerating it means an upstream release that adds a fifth tool",
+    "cannot silently widen what agents in this repository can call."
+  ],
+  "mcpServers": {
+    "adrkit": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@adrkit/mcp@0.4.0", "--dir", "docs/adr"],
+      "tools": [
+        "search_decisions",
+        "get_decision",
+        "get_decision_context",
+        "list_superseded"
+      ]
+    }
+  }
+}

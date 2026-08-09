@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "adrkit": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@adrkit/mcp@0.4.0",
+        "--cwd",
+        "${workspaceFolder}",
+        "--dir",
+        "docs/adr"
+      ]
+    }
+  }
+}

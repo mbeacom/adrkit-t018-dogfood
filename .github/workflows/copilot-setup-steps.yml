@@ -1,0 +1,110 @@
+name: "Copilot Setup Steps"
+
+# Prepares Copilot cloud agent's ephemeral environment so the adrkit MCP server
+# this repository configures can actually start.
+#
+# Why this exists: the MCP server is launched as `npx -y @adrkit/mcp@0.4.0`, and
+# @adrkit/mcp declares `engines.node >= 22`. If the agent environment's default
+# Node is older, or the registry is slow or unreachable at launch, the server
+# fails to start -- and it fails *quietly*, because an agent with no adrkit tools
+# looks exactly like an agent that chose not to use them. These steps pin Node 22
+# and populate the npm cache with the package and its dependency closure before
+# Copilot begins, so the later `npx` resolves from cache.
+#
+# Honest scope: this is a precaution, not verified behavior, and it is a weaker
+# guarantee than it may look.
+#   * This repository cannot observe Copilot cloud agent's environment from the
+#     outside. Nothing here is evidence that an agent starts the server
+#     successfully -- only that two known failure modes have been addressed.
+#   * `npx` still performs its own resolution at launch. Pre-populating the cache
+#     makes that resolution likely to be served locally; it does not make the
+#     server runnable with no network at all, and this file does not claim it
+#     does. The integrity check below covers the artifact npm resolves *during
+#     this workflow run*, not a later re-resolution at agent launch time.
+#   * The binding provenance check -- tarball sha512, plus a byte-level diff of
+#     the package's src/ against the pinned adrkit commit -- lives in
+#     scripts/validate-mcp.sh and runs in .github/workflows/mcp-validation.yml.
+#     This workflow is a fast gate, not a substitute for it.
+#
+# The pinned version and integrity below are duplicated from
+# scripts/validate-mcp.sh, which is the authority for both. Keep them in sync
+# when repinning; scripts/assert-mcp-config.mjs fails the build if they drift.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or Copilot will not pick it up.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # @adrkit/mcp's declared engines range. npm treats `engines` as
+          # advisory rather than fatal by default, so an older Node would not
+          # necessarily fail loudly at install time -- it would fail later, or
+          # subtly, at runtime. Pinning it here avoids depending on whatever the
+          # runner image happens to ship.
+          node-version: "22"
+
+      - name: Verify and cache the pinned MCP server
+        # Order matters: populate, verify, then install the verified file.
+        #
+        # An earlier version of this step verified a tarball fetched with `curl`
+        # and then ran `npm install "@adrkit/mcp@0.4.0"`, which performs its own
+        # registry resolution -- so the bytes that were checked were never the
+        # bytes that were installed, and a re-point between the two commands
+        # would have defeated the check entirely. `npm pack` is used instead
+        # because it emits exactly what npm itself resolves and serves, so
+        # hashing its output verifies the artifact that actually lands in the
+        # cache and in the install below.
+        env:
+          EXPECTED_SHA512: "sha512-WhoLbC1w4GgAmli3ZO1SesKQYKHWI0P/Eq1QD8apTtaW34JlthXlueql30tJtV9lMuTuIhGs2AAj3qd4LHHwjA=="
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+
+          # Populates the npm cache entry that the `npx` in the MCP
+          # configuration will later resolve against.
+          npm cache add "@adrkit/mcp@0.4.0"
+
+          # Materializes what npm resolves for that spec, so the integrity check
+          # below applies to the served artifact rather than to a side-channel
+          # download.
+          npm pack "@adrkit/mcp@0.4.0" --pack-destination "$workdir" >/dev/null
+          tarball="$workdir/adrkit-mcp-0.4.0.tgz"
+
+          observed="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
+          if [[ "$observed" != "$EXPECTED_SHA512" ]]; then
+            echo "error: @adrkit/mcp@0.4.0 integrity mismatch" >&2
+            echo "  expected: $EXPECTED_SHA512" >&2
+            echo "  observed: $observed" >&2
+            echo "npm resolved bytes this repository has not verified." >&2
+            exit 1
+          fi
+          echo "integrity ok: @adrkit/mcp@0.4.0 (as resolved by npm)"
+
+          # Installed from the verified local file, not by name, so the binary
+          # smoke-tested below is provably the artifact just checked. npm still
+          # resolves and caches the dependency closure, which is the point of
+          # installing rather than only caching the top-level tarball.
+          npm install --no-audit --no-fund \
+            --prefix "$workdir/install" "$tarball"
+
+          bin="$workdir/install/node_modules/.bin/adrkit-mcp"
+          if [[ ! -x "$bin" ]]; then
+            echo "error: expected the adrkit-mcp binary at $bin" >&2
+            exit 1
+          fi
+          echo "cached @adrkit/mcp@0.4.0 and its dependency closure"

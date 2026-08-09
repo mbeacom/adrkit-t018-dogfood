@@ -1,0 +1,46 @@
+name: adrkit MCP validation
+
+# Validates the adrkit MCP server this repository configures for GitHub Copilot
+# cloud agent, Copilot code review, Copilot CLI, and VS Code.
+#
+# The repository-level cloud-agent MCP configuration is UI state on GitHub.com and
+# cannot be enforced by CI. What CI *can* enforce is everything the pasted
+# configuration depends on being true: that the pinned package is the code this
+# repository pins everywhere else, that the three checked-in client configs have
+# not drifted apart, and that the server actually returns the governance answers
+# the CI Action enforces. This workflow does that, and fails the run on
+# divergence rather than emitting a log for a human to interpret.
+#
+# The scheduled run is the point of the weekly cron: an npm package is a moving
+# target in a way a commit SHA is not, so a re-pointed or yanked tarball surfaces
+# here rather than inside an agent session.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+  schedule:
+    # Weekly, so registry drift surfaces here rather than mid-agent-session.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this reference repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # @adrkit/mcp declares engines.node >= 22. validate-mcp.sh re-checks
+          # this at runtime so the script is not silently dependent on the
+          # workflow getting it right.
+          node-version: "22"
+
+      - name: Validate the pinned MCP server against this repository's corpus
+        run: ./scripts/validate-mcp.sh

@@ -24,6 +24,14 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   because bundled dependencies did, so the fail-closed boundary was re-probed
   rather than inferred. See
   [Re-validation against `c3dff3a7`](#re-validation-against-c3dff3a7-adrkit-v040-2026-08-08).
+- **MCP server for coding agents (2026-08-09)** — a pinned, integrity-verified
+  `@adrkit/mcp` configuration is checked in for Copilot cloud agent, Copilot code
+  review, Copilot CLI, and VS Code, and validated in CI against this
+  repository's corpus (56 assertions). The cloud-agent setting itself is UI state
+  on GitHub.com and must be applied by hand, so **no agent tool invocation has
+  been observed yet** — this is a prepared and validated configuration, not
+  evidence of agent use. See
+  [MCP server for agents](#mcp-server-for-agents).
 
 ## ⚠️ Status boundary — this is NOT SC-004 evidence
 
@@ -236,6 +244,14 @@ previously read `checked: 3 governing, …`.
 | `scripts/test-assert-no-issue-mutation.sh` + `scripts/fixtures/mutation-*.json` | Local/CI unit test harness for `assert-no-issue-mutation.sh`: an identical (reordered) pair that must pass, and four pairs that each violate exactly one invariant (body changed, state changed, issue added, issue removed), with no GitHub API access required. |
 | `.github/workflows/spec-kit-extension.yml` | **Spec Kit extension** rung-2 validation: installs `@adrkit/spec-kit` from its published, sha256-pinned release asset into a real Spec Kit project, at each upstream version where that install path works (`0.14.4`, `0.15.1`), and runs `scripts/validate-spec-kit-extension.sh`. Runs on PR, on `main`, weekly, and on demand. |
 | `scripts/validate-spec-kit-extension.sh` | Self-verifying, fail-closed assertions for the Spec Kit extension: install and rendering, the hook contract, packaging hygiene, behavior against this repo's real corpus, zero mutation, and four consumer-facing failure modes that must produce no side effect. 41 assertions per upstream version. |
+| `.github/copilot-mcp-config.json` | **Canonical** MCP configuration for Copilot cloud agent and Copilot code review. Not read at runtime by anything — the live setting is UI state on GitHub.com — but version-controlled so it is reviewable and attributable to a commit. See "MCP server for agents". |
+| `.vscode/mcp.json`, `.copilot/mcp-config.json` | The same server for VS Code and Copilot CLI, in those clients' schemas. Kept in agreement with the canonical config by `scripts/assert-mcp-config.mjs`. |
+| `.github/copilot-instructions.md` | Repository instructions for coding agents: query the MCP rather than grepping the corpus, report MCP defects instead of routing around them, and honor this repository's evidence and pin discipline. |
+| `.github/workflows/mcp-validation.yml` | MCP validation: runs `scripts/validate-mcp.sh` on PR, on `main`, weekly, and on demand. The weekly run exists because an npm package is a moving target in a way a commit SHA is not. |
+| `.github/workflows/copilot-setup-steps.yml` | Prepares Copilot cloud agent's environment so the MCP server can start: pins Node 22, warms the npm cache with the pinned version, and re-verifies its `sha512`. A precaution, not verified agent behavior — see "MCP server for agents". |
+| `scripts/validate-mcp.sh` | Verifies the pinned `@adrkit/mcp` tarball's `sha512`, proves its `src/` is byte-identical to `packages/mcp/src` at the pinned adrkit commit, asserts config agreement, drives the server over stdio JSON-RPC, and asserts the corpus was not mutated. |
+| `scripts/assert-mcp-config.mjs` | Network-free assertions that the three checked-in MCP configs and the Copilot setup-steps workflow agree with each other and with the pin (28 assertions). |
+| `scripts/assert-mcp-surface.mjs` | stdio JSON-RPC assertions against the verified server install: four-tool surface, read-only annotations, governance resolution, nested-matcher discrimination, input rejection, and stdout protocol hygiene (28 assertions). |
 
 ## The Phase 6 ARB queue corpus
 
@@ -300,6 +316,295 @@ workflow [`queue-validation.yml`](.github/workflows/queue-validation.yml) runs
 the same script on every pull request, on push to `main`, and on
 `workflow_dispatch`, so the report is reviewable in the job log without
 polluting the corpus with generated artifacts.
+
+## MCP server for agents
+
+adrkit ships a local, read-only MCP server (`@adrkit/mcp`) that exposes this
+repository's decision corpus to coding agents over stdio. This repository checks
+in configurations for **Copilot cloud agent**, **Copilot code review**, **Copilot
+CLI**, and **VS Code**, so an agent working here can ask what governs a file
+instead of inferring it by reading Markdown.
+
+The concrete gain today is the validation, not the agent behavior. The MCP
+surface was previously exercised only in one-off manual runs (see
+[Full CLI + MCP surface dogfood](#full-cli--mcp-surface-dogfood-2026-07-25)),
+whose coverage caveats were a standing gap; `scripts/validate-mcp.sh` converts
+those one-off observations into CI-enforced assertions that run on every pull
+request. Whether agents then actually *use* the server is a separate claim, and
+one this repository cannot yet make — see
+[What this does not establish](#what-this-does-not-establish).
+
+### The cloud-agent configuration is UI state, and that is a problem
+
+The repository-level MCP configuration read by Copilot cloud agent and Copilot
+code review lives in **Settings → Copilot → MCP servers** on GitHub.com. There
+is no repository file that sets it and no REST endpoint that reads or writes it
+— `repos/{owner}/{repo}/copilot/mcp/config` and the adjacent paths all 404.
+
+That is a genuine gap in this repository's normal discipline: everything else
+here is pinned, diffable, and attributable to a commit, and this one setting is
+not. It cannot be closed from inside the repository, so it is narrowed instead:
+
+- [`.github/copilot-mcp-config.json`](.github/copilot-mcp-config.json) is the
+  **canonical** configuration — the exact payload that should be pasted into the
+  settings page. Nothing reads it at runtime. It exists so the intended setting
+  is reviewable, diffable, and attributable, and so a drift between what is
+  configured and what was agreed is a reviewable change rather than invisible.
+- CI cannot assert that the live setting matches it. **Do not read a green
+  `mcp-validation` run as evidence that the cloud-agent setting is correct** —
+  it is evidence that everything the setting depends on is correct.
+
+Applying it is a manual step: copy the `mcpServers` object (dropping the
+`$comment` keys, which are documentation and not part of the schema) into the
+settings page and save.
+
+### What is pinned, and why npm is acceptable here
+
+Every other adrkit reference in this repository is a 40-character commit SHA.
+The MCP server is launched by `npx` from npm, which is a weaker identity: a
+version number is a *name*, and the pin discipline in
+[Pinned adrkit commit](#pinned-adrkit-commit) is about *content*. Two things
+close that gap:
+
+1. **The tarball is content-pinned.** `scripts/validate-mcp.sh` records the
+   registry's `sha512` integrity for `@adrkit/mcp@0.4.0` and verifies the
+   downloaded tarball against it before anything else happens. This is the npm
+   analogue of `ADRKIT_EXT_SHA256` in the Spec Kit workflow.
+
+2. **The tarball is tied to the pinned commit.** `@adrkit/mcp` ships its own
+   `src/` (its `package.json` `files` includes it), so the published package can
+   be diffed directly against the commit this repository pins. Observed:
+
+   ```console
+   $ diff -r package/src fromgit/packages/mcp/src && echo IDENTICAL
+   IDENTICAL
+   ```
+
+   where `package/` is the extracted `@adrkit/mcp@0.4.0` tarball and `fromgit/`
+   is `git archive c3dff3a7a9c3df44233809423eb59a3505fcf6f5 packages/mcp/src`.
+
+   This is the assertion that licenses using npm for MCP at all. Without it,
+   "the MCP server agents use matches the adrkit commit this repository pins"
+   would be an assumption — and it is not a safe one in general: npm
+   `@adrkit/mcp@0.2.0` was published **2026-07-20**, five days *before* the
+   `bbe63e01` pin whose whole point was fixing
+   [#39](https://github.com/mbeacom/adrkit/issues/39), a defect in shared code
+   that `packages/mcp/src/tools/get-decision-context.ts` calls. The npm channel
+   and the commit pin move on different axes, so their agreement is checked, not
+   assumed. At the current pin they agree.
+
+   **Two scope caveats, both material.**
+
+   *Only `src/` is compared.* The `dist/` the server actually executes is a build
+   artifact and is not byte-reproducible from a `git archive`, so it is not
+   diffed. It is covered indirectly: the `sha512` pins it against silent
+   replacement, and the behavioral assertions below run against that real
+   published `dist`. Weaker than the source comparison, and stated as such.
+
+   *Only `@adrkit/mcp` itself is pinned.* The server imports `@adrkit/core`,
+   `@modelcontextprotocol/server`, and `zod`, and those are resolved by npm at
+   install time from ranges — there is no lockfile here, so the executed
+   dependency closure is not content-pinned. This matters more than it might
+   look: `@adrkit/core` is where the shared `decisionBucketFor` lives, so
+   governance behavior is partly determined by code this repository does not pin.
+   What that leaves is a narrower claim than "the whole server matches the pinned
+   commit", and the narrower claim is the one made here: **the `@adrkit/mcp`
+   package is pinned and matches the pinned commit; its dependencies are not.**
+   The behavioral assertions are what cover the rest, empirically rather than by
+   provenance — they run against whatever closure npm actually resolved.
+
+The version is deliberately exact in all three configs. `npx -y @adrkit/mcp`
+without a version resolves at launch, which would mean every agent session ran
+against whatever was current that day, with no way to tell afterwards which code
+produced a given answer — the same failure mode as pinning `@v0`.
+
+### Three configs, one server
+
+Three clients read three files in three schemas, so there is no single format to
+collapse them into. The copies are a drift hazard, so drift is made a build
+failure: `scripts/assert-mcp-config.mjs` asserts the invariants that determine
+behavior (same package at the same exact version, same `docs/adr`, and — for the
+two Copilot schemas — the same explicit four-tool allowlist), while tolerating
+the differences the schemas require (`${workspaceFolder}` substitution in VS
+Code; no `tools` key in the VS Code schema).
+
+The tool allowlist enumerates the four tools rather than using `["*"]`. Copilot
+invokes MCP tools autonomously **without asking for approval**, so the allowlist
+is a real boundary, and enumerating it means an upstream release that adds a
+fifth tool cannot silently widen what agents here can call — it becomes a failed
+assertion and a deliberate re-verification.
+
+### Making the server actually start in the agent environment
+
+`@adrkit/mcp` declares `engines.node >= 22`, and npm treats `engines` as advisory
+rather than fatal, so an older runtime would not necessarily fail loudly at
+install time — it would fail later, or subtly. A server that fails to start also
+fails *quietly* from the outside: an agent with no adrkit tools looks exactly
+like an agent that chose not to use them.
+
+[`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml)
+addresses the two most likely causes. It pins Node 22, populates the npm cache
+with the pinned version and its dependency closure so the launch resolves
+locally rather than racing the network, and re-checks the same `sha512` so a
+substituted artifact fails in setup — visibly, in the session log — rather than
+silently becoming the code an agent runs.
+
+The order of those steps is load-bearing, and getting it wrong is easy. An
+earlier version verified a tarball fetched with `curl` and then ran `npm install
+"@adrkit/mcp@0.4.0"` — which performs *its own* registry resolution, so the bytes
+checked were never the bytes installed, and a re-point between the two commands
+would have defeated the check while leaving it green. The step now runs `npm
+pack` on the pinned spec, which emits exactly what npm resolves and serves,
+hashes *that*, and installs the verified local file. Verified artifact and
+installed artifact are now the same bytes.
+
+**Even so, this is a precaution, not verified behavior.** This repository cannot
+observe Copilot cloud agent's environment from outside, so nothing here is
+evidence that an agent successfully starts the server; only that two known
+failure modes have been addressed. Two limits are worth naming precisely:
+
+- The integrity check covers what npm resolves **during this workflow run**. The
+  `npx` in the MCP configuration performs its own resolution later, at agent
+  launch, which this workflow does not gate. The binding provenance check —
+  `sha512` plus the `src/` diff against the pinned commit — is
+  `scripts/validate-mcp.sh`, and it runs in CI on every pull request.
+- The workflow runs as an ordinary Actions workflow when it changes, which
+  verifies the steps themselves succeed. It does not verify that Copilot ran
+  them.
+
+Because the pin now appears in that workflow as well as in
+`scripts/validate-mcp.sh`, the drift check covers it: `SETUP-SPEC`,
+`SETUP-SHA512`, `SETUP-NO-FLOAT`, and `SETUP-NO-STALE` assert the workflow
+carries the same version and integrity, uses no non-exact spec, and mentions no
+other version. The sweep looks for the version in *both* forms the file uses —
+the npm spec and the packed tarball filename — because
+the filename is `adrkit-mcp-0.4.0.tgz`, where the version is not adjacent to the
+package spec. A single pattern anchored on the package name missed it, and a
+negative test caught that the check was passing a case it claimed to catch;
+`SETUP-SWEEP-NONVACUOUS` now additionally asserts both forms are present, so the
+sweep cannot become vacuous if the file is restructured. Comments are stripped
+before the sweep, because this file's own header explains the pin and therefore
+contains it — without stripping, the real command could be changed to `@latest`
+with every assertion still green.
+
+### Running the MCP validation
+
+```bash
+./scripts/validate-mcp.sh
+```
+
+Requires Node ≥ 22 (`@adrkit/mcp`'s declared `engines` range; the script
+re-checks it rather than trusting the workflow). Nothing is built from source:
+the server under test is the published artifact, installed from the tarball whose
+`sha512` was verified moments earlier and executed from that installation.
+
+That last detail matters and was a correction. The harness originally launched a
+second, independent `npx -y @adrkit/mcp@0.4.0` — which re-resolves by name and
+could execute a cached or hoisted same-version copy that no version-string
+assertion can distinguish from the verified one. It now runs the verified
+install directly, so "the artifact validated" and "the artifact executed" are the
+same bytes. Note this makes the harness's launch *not* byte-identical to the
+configs': it invokes the installed binary rather than `npx`, and passes `--cwd`
+where the two Copilot configs rely on the default. What is shared is the package,
+the `--dir`, and the stdio transport.
+
+The script cross-checks the adrkit pin against `scripts/validate-queue.sh`,
+verifies the tarball integrity, proves the npm↔commit correspondence, installs
+the verified tarball, runs the 28 configuration assertions, runs the 28 stdio
+JSON-RPC assertions, and then re-hashes `docs/adr`. Observed against the current
+pin — all 56 assertions pass:
+
+| Assertion group | What is asserted |
+|---|---|
+| `MCP-1`–`MCP-2` | The server identifies as `@adrkit/mcp` and reports **0.4.0**. This is a consistency check, not provenance — provenance comes from having executed the sha512-verified install. |
+| `MCP-3`–`MCP-5` | Exactly the four tools, every one annotated `readOnlyHint: true` and `openWorldHint: false`. These are *declarations*, not an enforced sandbox: they are what a client relies on when deciding to invoke autonomously, so a change to them is a change to that basis. Enforcement is not asserted here. |
+| `MCP-6`–`MCP-9` | `src/payments/api/handler.ts` resolves to `governing: 0001, 0002`, `activeProposals: 0014`, `history: []` — the same status-aware buckets `adr check` and the CI Action produce for that path. |
+| `MCP-10`–`MCP-12` | `corpusHealth` reports 15 records, 0 excluded, fingerprint `1664c5af…4bd936`. The fingerprint is asserted so an accidental corpus edit fails loudly here instead of silently shifting every expectation below it. |
+| `MCP-13`–`MCP-16` | `search_decisions` finds the payments records; an ungoverned path (`README.md`) returns the `matches` branch with empty results rather than an error, so an agent can distinguish "nothing governs this" from "the lookup failed". |
+| `MCP-17`–`MCP-21` | `list_superseded` returns `entries` (empty — this corpus declares no supersession, asserted rather than skipped); `get_decision` resolves `0001` as `accepted` and returns an explicit `not-found` for `9999` rather than a protocol error or a fabricated record. |
+| `MCP-22`–`MCP-24` | Paths resolve by pattern without needing to exist. `src/payments/api/does-not-exist.ts` matches both `0001` (`src/payments/**`) and `0002` (`src/payments/api/**`), while `src/payments/does-not-exist.ts` matches only `0001` — which also pins nested-matcher discrimination. |
+| `MCP-25`–`MCP-27` | Traversal (`../../../etc/passwd`), absolute (`/etc/passwd`), and Windows-separator paths are refused. |
+| `MCP-28` | Nothing but well-formed JSON-RPC 2.0 frames appeared on stdout, which the server's contract reserves for the protocol. |
+
+`MCP-25`–`MCP-27` assert the *kind* of rejection, not just its presence. Each is
+refused with a schema message — `files must be repo-relative POSIX paths` — and
+not `ENOENT` or `EACCES`. Combined with `MCP-22`, where a nonexistent path
+resolves happily instead of erroring, this is consistent with the documented
+behavior that path arguments are matched against patterns rather than opened.
+
+**It is consistent with it, not proof of it.** Both observations are black-box
+responses; neither inspects syscalls, and a server that opened its inputs and
+then discarded the result would produce the same output. The stronger read-only
+and never-opened evidence — import-graph inspection, `lsof` showing zero network
+sockets — is from the original `896391cc` run and is
+[recorded there with its own caveats](#full-cli--mcp-surface-dogfood-2026-07-25),
+not re-established here.
+
+Four corrections are worth recording, because each is the failure mode this
+repository's evidence standard exists to catch — a check that would have been
+recorded as evidence while testing nothing.
+
+1. `MCP-25`–`MCP-27` were first written to expect a **JSON-RPC error**, and they
+   failed. The server was right and the assertion was wrong: MCP reports tool
+   input validation as an `isError: true` *result*, not a protocol error. Written
+   to pass, they would have recorded "traversal is rejected" vacuously.
+2. `MCP-24` initially asserted that *any* nonexistent path under `src/payments/`
+   matched both `0001` and `0002`. It matches only `0001` — `0002`'s matcher is
+   the narrower `src/payments/api/**`. A guess the corpus falsified.
+3. The result reader originally fell back to the raw result when
+   `structuredContent` was absent, and ignored `isError`. A tool that started
+   returning errors, or stopped returning structured output, could have satisfied
+   an `outcome` assertion by accident. Both are now hard failures. Likewise
+   `summarize()` normalized a missing bucket to `[]`, which would have made every
+   "this bucket is empty" assertion pass when the bucket was absent entirely.
+4. `SETUP-NO-STALE` searched the raw workflow text, and that file's own header
+   comment contains the pinned spec — so the real command could have been changed
+   to `@latest` with every assertion still green. Comments are now stripped before
+   the sweep, and `SETUP-NO-FLOAT` rejects any non-exact spec, including dist-tags
+   and ranges that carry no version number for a semver sweep to compare.
+5. `MCP-28` was evaluated while the server was still running, so anything emitted
+   after the final response — or during shutdown, where stray output is most
+   likely — arrived too late to be seen. The assertion now runs after the client
+   closes. Closing also had to change: it ended stdin and sent `SIGTERM`
+   immediately, which truncated the very output the assertion needed. Measured
+   directly against a server that writes a non-JSON line on shutdown:
+
+   ```console
+   OLD (immediate kill) captured shutdown line: false
+   NEW (graceful)      captured shutdown line: true
+   ```
+
+   A trailing fragment with no newline is now also counted as a violation rather
+   than discarded with the buffer.
+
+Each of these was found by deliberately breaking the thing the check claimed to
+protect and confirming the check went red.
+
+### What this does not establish
+
+- It is **not** evidence that the cloud-agent setting on GitHub.com is correct,
+  configured, or in agreement with the canonical file. That is unverifiable from
+  here.
+- It is **not** `specs/007-arb-queue` SC-004 / T048 evidence, for the same reason
+  nothing else in this repository is — see
+  [Status boundary](#-status-boundary--this-is-not-sc-004-evidence).
+- It does **not** re-run the broader `896391cc` MCP sweep (22 calls, pagination
+  cursors, `lsof` socket checks, import-graph inspection). Those remain
+  point-in-time observations with the caveats recorded under
+  [MCP re-coverage](#mcp-re-coverage-get_decision_context-only).
+- The read-only check is narrower than "the server does not write". Hashing every
+  file under `docs/adr` before and after establishes that the corpus **ended**
+  byte-identical to how it started — it would not detect a write that was
+  reverted, a temporary file created and removed, or a write anywhere outside
+  `docs/adr`. It is a regression tripwire on the corpus, not a proof of
+  read-only behavior.
+- It does **not** content-pin the server's dependency closure. See the second
+  scope caveat under
+  [What is pinned](#what-is-pinned-and-why-npm-is-acceptable-here).
+- It does **not** verify that agents actually *use* the server.
+  [`.github/copilot-instructions.md`](.github/copilot-instructions.md) instructs
+  them to, but instructions are not a mechanism, and no assertion here observes
+  agent behavior.
 
 ## The managed queue issue (`arb-queue.yml`)
 
