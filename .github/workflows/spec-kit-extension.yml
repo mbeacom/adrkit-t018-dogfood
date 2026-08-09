@@ -28,7 +28,7 @@ env:
   # Immutable adrkit commit under test. Bumping this is a re-verification.
   ADRKIT_REF: "61f591086085e1d6fcd4d8636d3364a9a949ddd6"
   # The published CLI surface a real consumer installs.
-  ADRKIT_CLI_VERSION: "0.3.0"
+  ADRKIT_CLI_VERSION: "0.4.0"
 
 jobs:
   validate:
