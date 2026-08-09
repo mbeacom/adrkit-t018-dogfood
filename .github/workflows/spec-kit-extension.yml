@@ -9,8 +9,10 @@ name: adrkit Spec Kit extension reference validation
 # This workflow is the self-verifying half of rung 2: it fails the run when
 # observed behavior diverges from expected, rather than producing a log for a
 # human to interpret. The matrix is what continuously substantiates the
-# extension's `speckit_version: ">=0.13.0,<0.16.0"` claim — if upstream breaks
-# the extension on any pinned version, this goes red.
+# supported range — if upstream breaks the extension on any pinned version,
+# this goes red. The extension's manifest claims `>=0.13.0,<0.16.0`; this
+# validation covers only the versions where the *published* install path
+# actually works, which excludes 0.13.0. See README, "The 0.13.0 exclusion".
 
 on:
   pull_request:
@@ -43,8 +45,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The endpoints and midpoint of the extension's declared support range.
-        specify_version: ["0.13.0", "0.14.4", "0.15.1"]
+        # Every upstream version on which the published install path works.
+        # 0.13.0 is deliberately absent — see README, "The 0.13.0 exclusion".
+        specify_version: ["0.14.4", "0.15.1"]
     steps:
       - name: Check out this reference repository
         uses: actions/checkout@v4

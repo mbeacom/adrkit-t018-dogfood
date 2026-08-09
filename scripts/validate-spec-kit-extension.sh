@@ -154,22 +154,11 @@ for unwanted in test tsconfig.json package.json node_modules; do
 	assert_eq "PKG-$unwanted" "development-only '$unwanted' not shipped to the consumer" "absent" \
 		"$([ -e "$INSTALLED/$unwanted" ] && echo present || echo absent)"
 done
-# Exec bits are a spec-kit version boundary, not an extension property. The zip
-# install path in 0.13.0 calls `zf.extractall()` and never restores Unix modes,
-# so a bundled *.sh lands non-executable; 0.14.4 fixed it by calling
-# `ensure_executable_scripts` after extraction, with a comment naming exactly
-# this defect. So the expectation is asserted in both directions rather than
-# skipped on 0.13.0 — if upstream ever backports the fix, or regresses it after
-# 0.14.4, this goes red either way.
-case "$SPECIFY_VERSION" in
-0.13.0) EXPECT_EXEC="false" ;;
-*) EXPECT_EXEC="true" ;;
-esac
 for script in adrkit-lib.sh context.sh check.sh draft.sh; do
-	assert_eq "PKG-x-$script" "$script installed; executable iff spec-kit restores zip modes (>=0.14.4)" "$EXPECT_EXEC" \
-		"$([ -x "$INSTALLED/scripts/$script" ] && echo true || echo false)"
-	assert_eq "PKG-p-$script" "$script present regardless of mode" "true" \
+	assert_eq "PKG-p-$script" "$script installed" "true" \
 		"$([ -f "$INSTALLED/scripts/$script" ] && echo true || echo false)"
+	assert_eq "PKG-x-$script" "$script is executable" "true" \
+		"$([ -x "$INSTALLED/scripts/$script" ] && echo true || echo false)"
 done
 assert_contains "PKG-ref" "rendered command points at the installed script path" \
 	".specify/extensions/adrkit/scripts/check.sh" "$(cat "$PROJECT/.github/agents/speckit.adrkit.check.agent.md")"
@@ -201,6 +190,35 @@ CHK_OUT="$(run_in_project sh "$INSTALLED/scripts/check.sh" src/payments/api.ts 2
 assert_eq "BEH-5" "check exits 0 against a clean corpus" "0" "$CHK_RC"
 assert_contains "BEH-6" "check emits its section marker" "==> adrkit:check" "$CHK_OUT"
 assert_contains "BEH-7" "check announces that routing did not run without a snapshot" "no ADRKIT_SNAPSHOT configured" "$CHK_OUT"
+
+# --------------------------------------------------------------------------
+# Invocation, exactly as rendered.
+#
+# Every BEH-* assertion above runs the scripts as `sh <path>`, which succeeds
+# whether or not the installed file carries its executable bit. The agent is
+# not told to do that. The command markdown says `Run {SCRIPT}`, and spec-kit
+# substitutes a bare path — so the instruction an agent actually follows is a
+# direct execution. A `sh`-mediated harness therefore passes on an install the
+# consumer cannot use.
+#
+# These assertions close that gap by running the path the rendered command
+# names, the way it says to run it. `scripts: sh:` in the command frontmatter
+# selects the POSIX-shell *variant* of the script (as opposed to `ps`); it is
+# not an instruction to invoke through the `sh` binary.
+# --------------------------------------------------------------------------
+echo "== invocation as rendered =="
+RENDERED="$PROJECT/.github/agents/speckit.adrkit.check.agent.md"
+RENDERED_PATH="$(grep -oE '\.specify/extensions/adrkit/scripts/check\.sh' "$RENDERED" | head -1)"
+assert_eq "INV-1" "rendered command names the installed check script" \
+	".specify/extensions/adrkit/scripts/check.sh" "$RENDERED_PATH"
+
+INV_RC=0
+run_in_project "$PROJECT/$RENDERED_PATH" src/payments/api.ts >/dev/null 2>&1 || INV_RC=$?
+assert_eq "INV-2" "the rendered check path executes directly, as the agent is instructed to run it" "0" "$INV_RC"
+
+INV_CTX_RC=0
+run_in_project "$INSTALLED/scripts/context.sh" src/payments/api.ts >/dev/null 2>&1 || INV_CTX_RC=$?
+assert_eq "INV-3" "the context script executes directly too" "0" "$INV_CTX_RC"
 
 # --------------------------------------------------------------------------
 # Mutation. The hook can fire check unattended, so it must touch nothing.
