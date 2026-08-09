@@ -19,6 +19,11 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   above were re-checked from the outside against the fixed commit before this
   repository was repinned to it. See
   [Re-validation against `bbe63e01`](#re-validation-against-bbe63e01-2026-07-25).
+- **Repin to `c3dff3a7` / adrkit `v0.4.0` (2026-08-08)** — the current pin. No
+  Action source changed across this one; the committed bundles moved only
+  because bundled dependencies did, so the fail-closed boundary was re-probed
+  rather than inferred. See
+  [Re-validation against `c3dff3a7`](#re-validation-against-c3dff3a7-adrkit-v040-2026-08-08).
 
 ## ⚠️ Status boundary — this is NOT SC-004 evidence
 
@@ -37,21 +42,110 @@ All adrkit usage in this repository — the validation script and the
 GitHub Actions workflows — is pinned to an exact 40-character adrkit commit:
 
 ```
-bbe63e017274f173dbb40eeaceccd17df346b32b
+c3dff3a7a9c3df44233809423eb59a3505fcf6f5
 ```
 
-This is the tip of adrkit `main` as of 2026-07-25: the squash-merge of PR
-[mbeacom/adrkit#45](https://github.com/mbeacom/adrkit/pull/45), which closes
-the four defects ([#39](https://github.com/mbeacom/adrkit/issues/39)–[#42](https://github.com/mbeacom/adrkit/issues/42))
-that this repository's own dogfood run found. It supersedes the previous pin
+This is the commit behind adrkit's **`v0.4.0`** release tag, verified by
+dereferencing the annotated tag rather than trusting the release page:
+
+```console
+$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.4.0 --jq '.object.type, .object.sha'
+tag
+5fd19a1025ae6924793ffad5e663aa8c04e64c73
+$ gh api repos/mbeacom/adrkit/git/tags/5fd19a1025ae6924793ffad5e663aa8c04e64c73 --jq '.object.sha'
+c3dff3a7a9c3df44233809423eb59a3505fcf6f5
+```
+
+It supersedes `bbe63e017274f173dbb40eeaceccd17df346b32b`, which superseded
 `896391cc385798f7f08c5694f70acaf0342789e9`, which in turn superseded
 `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (the `specs/007-arb-queue` merge
 commit).
 
-**Unlike the previous repin, this one does change code under test.** The
-`efef89b5` → `896391cc` repin could be justified by `git diff … --
-packages/ci/` being empty; that justification does **not** carry over here.
-Observed directly in a clone of adrkit at both commits:
+**adrkit now also publishes a moving `v0` major tag, and this repository
+deliberately does not use it.** It currently points at exactly this commit:
+
+```console
+$ gh api repos/mbeacom/adrkit/git/ref/tags/v0 --jq '.object.type, .object.sha'
+commit
+c3dff3a7a9c3df44233809423eb59a3505fcf6f5
+```
+
+That makes `v0` genuinely useful for *discovering* the current SHA — it is how
+this repin was found. But adopting `@v0` as the pin would destroy the property
+this repository exists to demonstrate: the tag is mutable, so a future adrkit
+release would silently change what this repository runs, with no diff, no
+review, and no way to tell after the fact which code produced a given piece of
+evidence. Discovery and pinning are different jobs. Use `v0` for the first and
+a 40-character SHA for the second.
+
+### What changed across `bbe63e01` → `c3dff3a7`
+
+**No Action source changed.** This is a materially weaker claim than the
+previous repin had to defend, and it is stated here as the weaker claim it is
+rather than dressed up. Observed directly in clones of adrkit at both commits:
+
+```console
+$ diff -rq bbe63e01/packages/ci/src c3dff3a7/packages/ci/src
+(no output — identical)
+
+$ diff -rq bbe63e01/packages/ci c3dff3a7/packages/ci
+Files .../dist/index.js and .../dist/index.js differ
+Files .../dist/queue-action.js and .../dist/queue-action.js differ
+Files .../package.json and .../package.json differ
+Only in c3dff3a7/packages/ci/test: bundle-scope.test.ts
+```
+
+`packages/ci/queue/action.yml` is byte-identical across the two pins (SHA-256
+`9e71b551…` at both), so the Action's input/output contract is unchanged.
+
+Contrast with the previous repin, which the section below still records: the
+`896391cc` → `bbe63e01` range changed `packages/ci/src/comment.ts` — a real
+source change with a readable diff to reason about. **This range changes no
+Action source at all.** The two committed bundles moved because bundled
+*dependencies* moved beneath them. The visible cause is in
+`packages/ci/package.json`:
+
+```diff
+-    "@actions/core": "^1.11.1",
+-    "@actions/github": "^6.0.1",
++    "@actions/core": "^3.0.1",
++    "@actions/github": "^9.1.1",
+```
+
+Two major-version bumps of the GitHub Actions toolkit, bundled directly into
+`dist/queue-action.js`. Nothing in this repository can see inside that bundle
+diff, and "the source didn't change" is therefore *not* sufficient grounds to
+carry the previous pin's evidence forward — the compiled artifact that actually
+runs in CI is different. The bundle shrank from 1,753,353 to 1,735,304 bytes
+(`dist/index.js`: 1,810,568 → 1,791,318). That is exactly why the fail-closed
+boundary below was re-probed by execution rather than inferred from an
+unchanged file.
+
+What that means for the evidence in this document, re-verified rather than
+assumed:
+
+| Surface | Across `bbe63e01` → `c3dff3a7` |
+|---|---|
+| `packages/ci/src/**` | **byte-identical** (`diff -rq` empty) |
+| `packages/ci/queue/action.yml` | **byte-identical** (SHA-256 `9e71b551…`) |
+| `packages/ci/dist/queue-action.js` | **regenerated** — 1,753,353 → 1,735,304 bytes, driven by bundled dependency bumps, not source |
+| `adr queue --format json` / `--format markdown` | **byte-identical** (SHA-256 `716e21b7…` / `fbcd4d5f…`), corpus fingerprint unchanged at `1664c5af…` |
+| `adr lint --dir docs/adr` | **byte-identical** — still `checked 15 records, 0 errors, 0 warnings` |
+| `adr graph --format json` | **byte-identical** |
+| `adr --version` | **changed** — `0.2.0` → `0.4.0`; recorded, deliberately not asserted (see below) |
+| `QueueReport` v1 contract | **widened, compatibly** — `CorpusFinding.severity` is now `"error" \| "warn"`; `report.version` is still `"1"` — see [The QueueReport contract widened](#the-queuereport-contract-widened-compatibly) |
+| queue Action fail-closed boundary | **re-probed against the regenerated bundle**, locally and then live under the new pin — see [Fail-closed evidence](#fail-closed-evidence-invalid-input-no-write) |
+| queue Action managed-issue path | **re-dispatched live under the new pin** — see [The managed queue issue](#the-managed-queue-issue-arb-queueyml) |
+
+All 13 assertions in `scripts/assert-queue-report.ts` reproduce identically
+under the new pin, and the `--as-of 2026-07-21` `overdue`/`due` states did not
+move.
+
+### The previous repin, `896391cc` → `bbe63e01` (historical)
+
+Retained because it is dated evidence about a different range, not a
+description of the current pin. **Unlike the `efef89b5` → `896391cc` repin,
+that one did change code under test.** Observed at the time:
 
 ```console
 $ git diff --name-status 896391cc..bbe63e01 -- packages/ci/
@@ -64,33 +158,19 @@ M	packages/ci/test/selectivity.test.ts
 ```
 
 Both committed Action bundles were regenerated and the PR-comment renderer
-changed. `action.yml` is unchanged (`git diff … -- 'packages/ci/**/action.yml'`
-is empty), so the Action's input/output contract is the same. The range is a
-single commit (`bbe63e0 fix: close the four dogfood defects (#39, #40, #41,
-#42) (#45)`).
+changed. `action.yml` was unchanged. The range was a single commit
+(`bbe63e0 fix: close the four dogfood defects (#39, #40, #41, #42) (#45)`).
+Its full evidence table is preserved in
+[Re-validation against `bbe63e01`](#re-validation-against-bbe63e01-2026-07-25).
 
-What that means for the evidence in this document, re-verified rather than
-assumed:
-
-| Surface | Across `896391cc` → `bbe63e01` |
-|---|---|
-| `adr queue --format json` / `--format markdown` | **byte-identical** (SHA-256 `716e21b7…` / `fbcd4d5f…`), corpus fingerprint unchanged at `1664c5af…` |
-| `adr lint --dir docs/adr` | **byte-identical** — still `checked 15 records, 0 errors, 0 warnings` |
-| `adr graph --format json` | **byte-identical** |
-| `adr check` / `adr explain` | **changed, deliberately** — see [status-aware governance](#status-aware-governance-changes-what-check-and-explain-report) below |
-| queue Action fail-closed boundary | **re-probed against the regenerated bundle**, locally and then live under the new pin — see [Fail-closed evidence](#fail-closed-evidence-invalid-input-no-write) |
-| queue Action managed-issue path | **re-dispatched live under the new pin**; all self-verification assertions passed and issue `#3` was a no-op update — see [The managed queue issue](#the-managed-queue-issue-arb-queueyml) |
-
-Every assertion in `scripts/assert-queue-report.ts` reproduces identically
-under the new pin, and the `--as-of 2026-07-21` `overdue`/`due` states did not
-move.
+### Why a SHA and never a moving ref
 
 This is a full 40-character commit SHA, never a moving branch or tag. Do not
 change any pin in this repository to `@main`, `@v0`, or any other ref without
 re-running the full validation procedure below and updating this document.
 
 A concrete instance of why, observed while verifying an upstream record during
-this run: fetching a file from GitHub's contents API by **branch ref**
+the `bbe63e01` run: fetching a file from GitHub's contents API by **branch ref**
 (`?ref=<branch>`) returned a stale revision — a `200` with plausible, coherent
 content and nothing to indicate it was behind the branch head. Re-fetching the
 same path by **explicit commit SHA** returned the current 10,944-byte revision
@@ -104,15 +184,18 @@ still not be showing you what you think you asked for.
 [`.github/workflows/adr.yml`](.github/workflows/adr.yml) predates this pinning
 requirement and is left untouched from Phase 3; it governs PRs against this
 repository, not the ARB queue. Because it is unpinned, it picks up the
-status-aware comment renderer from `bbe63e01` automatically — see
+status-aware comment renderer that landed in `bbe63e01` automatically — see
 [Live governance comment](#live-governance-comment-status-aware) below.)
 
 ### Status-aware governance changes what `check` and `explain` report
 
-This is the one intentional behavior change this repin introduces against this
-repository's own corpus (`0001`–`0012` `accepted`, `0013`–`0015` `proposed`).
-Under `896391cc`, `adr explain src/payments/api/handler.ts` reported `0001`,
-`0002` and `0014` alike, with no status shown. Under `bbe63e01`:
+This was the one intentional behavior change the **`896391cc` → `bbe63e01`**
+repin introduced against this repository's own corpus (`0001`–`0012`
+`accepted`, `0013`–`0015` `proposed`). It is unchanged at the current
+`c3dff3a7` pin and is recorded here as the historical record of that
+transition. Under `896391cc`, `adr explain src/payments/api/handler.ts`
+reported `0001`, `0002` and `0014` alike, with no status shown. From
+`bbe63e01` onward:
 
 ```console
 $ adr explain src/payments/api/handler.ts --dir docs/adr
@@ -139,9 +222,9 @@ previously read `checked: 3 governing, …`.
 | `docs/adr/0013`–`0015` | Phase 6 ARB queue corpus: `proposed` records exercising the `auto`, `async`, and `arb` routing tiers with deterministic SLA state, approvals, objections, and quorum. |
 | `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. |
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
-| `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so as of `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
+| `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so since `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@c3dff3a7a9c3df44233809423eb59a3505fcf6f5`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
@@ -180,20 +263,22 @@ regardless of when the script is actually executed.
 This script:
 
 1. Clones `mbeacom/adrkit` and checks out the pinned commit
-   `bbe63e017274f173dbb40eeaceccd17df346b32b` into a temporary directory
+   `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` into a temporary directory
    (never a branch or tag).
 2. Installs dependencies with `bun install --frozen-lockfile` using
    **Bun 1.3.14**.
 3. Builds the workspace with `bun run build`.
 4. Records the binary's self-reported version (`adr --version`, currently
-   `0.2.0`) alongside the pinned SHA, and fails if it exits non-zero or
+   `0.4.0`) alongside the pinned SHA, and fails if it exits non-zero or
    prints nothing. Before `bbe63e01` this was impossible — `adr --version`
    was an unknown command that exited 2
    ([mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42)) — so
    the commit SHA was the only provenance available. This check deliberately
-   does **not** assert the literal string `0.2.0`: a legitimate upstream
+   does **not** assert the literal version string: a legitimate upstream
    version bump should not break this repository's CI, whereas losing
-   `--version` entirely should.
+   `--version` entirely should. That design paid off at this repin — the
+   version moved `0.2.0` → `0.4.0` and the check passed unchanged, recording
+   the new value without any edit to the script.
 5. Runs:
    ```bash
    adr queue --dir docs/adr --as-of 2026-07-21 --format json
@@ -308,11 +393,11 @@ assertion logic run in two contexts:
 
 ### Live dispatch under the current pin
 
-Dispatched against the repin branch at commit `8d43f4b` (PR
-[#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8)) — run
-[`30169610361`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30169610361),
+Dispatched against the repin branch `mbeacom-repin-queue-action-v0-4-0` at
+commit `3bfe15a` — run
+[`31288355812`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31288355812),
 conclusion `success`, with the Action resolved at
-`Download action repository 'mbeacom/adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b'`.
+`Download action repository 'mbeacom/adrkit@c3dff3a7a9c3df44233809423eb59a3505fcf6f5'`.
 
 Every self-verification assertion passed, including exhaustive marker
 discovery (`exactly one issue carries the managed-queue marker across
@@ -322,13 +407,32 @@ OPEN+CLOSED issues (found 1: 3)`), the marker's exact first-line position, the
 absence of a `## Corpus Findings` section, and a `0 corpus finding(s)`
 summary.
 
-Worth recording: the dispatch was a **no-op update**. Issue `#3`'s body
-SHA-256 was `e82221fc2ad8946720d9897d687029320e7ba0b206c945094023f51ea3642d30`
-both before and after, and its `updatedAt` stayed at `2026-07-25T13:16:43Z` —
-the Action recognized the rendered report already matched and did not churn
-the issue. (This workflow always uses the default `--as-of` of today, so a
-same-day re-dispatch is expected to be idempotent; a dispatch on a later date
-would legitimately change the SLA states and therefore the body.)
+**This dispatch was not a no-op, and the reason is worth recording.** Under
+the `bbe63e01` pin the equivalent dispatch was idempotent — issue `#3`'s body
+hash and `updatedAt` were unchanged. Here the body moved from
+`e82221fc2ad8946720d9897d687029320e7ba0b206c945094023f51ea3642d30` to
+`28590cce9abbed8cafd320f264c5f6283757ffac8c28035d65a75caa77dd65ad`, and
+`updatedAt` advanced to `2026-08-09T01:29:11Z`.
+
+That is **not** attributable to the repin. This workflow always uses the
+Action's default `--as-of` of *today*, and the previous render was made on
+2026-07-25. In the intervening two weeks every item crossed its deadline, so
+all three rows moved to `overdue` — `0013` in particular went `within-sla` →
+`overdue` as its 2026-08-01 deadline passed. A body change was the correct
+behavior; an unchanged body would have been the bug.
+
+The idempotency claim was therefore tested separately, on its own terms, by
+**re-dispatching the same workflow against the same branch on the same day** —
+run [`31288387942`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31288387942),
+conclusion `success`. After it, issue `#3`'s body SHA-256 was still
+`28590cce…` and `updatedAt` was still `2026-08-09T01:29:11Z`: the Action
+recognized the rendered report already matched and did not churn the issue.
+That is the no-op, isolated from the date-driven change that preceded it.
+
+Note the contrast with `scripts/validate-queue.sh`, which pins
+`--as-of 2026-07-21` precisely so its output *is* stable across time. The two
+are deliberately different: the script is a reproducible evidence artifact, the
+workflow is a live operations queue that is supposed to track the calendar.
 
 As with everything else in this repository, `verify-managed-queue-issue.sh`
 is technical, owner-run evidence that the queue kernel/CLI/Action behave
@@ -460,26 +564,57 @@ is a plain regular **file**, not a directory. Passing its path as the
 Action's `dir` input makes Node's `readdir()` throw `ENOTDIR` synchronously
 inside `lintCorpus`, hitting exactly that first boundary.
 
-Because `bbe63e01` regenerated `packages/ci/dist/queue-action.js`, this
-boundary was **re-probed directly against the new bundle** rather than
-carried forward from the previous pin. Running the old and new committed
-bundles side by side produces byte-identical output:
+Because `c3dff3a7` regenerated `packages/ci/dist/queue-action.js`, this
+boundary was **re-probed directly against the new bundle** rather than carried
+forward from the previous pin. This matters more here than it did at the last
+repin, not less: at `bbe63e01` there was at least a readable
+`packages/ci/src/comment.ts` diff to reason about, whereas across
+`bbe63e01` → `c3dff3a7` **no Action source changed at all** and the bundle
+moved solely because bundled dependencies did — including major bumps of
+`@actions/core` (^1 → ^3) and `@actions/github` (^6 → ^9). "The source is
+identical" is not evidence about a bundle whose contents came from elsewhere.
 
-```
-$ env INPUT_DIR="/tmp/fail-closed-test/fixture-file" INPUT_TOKEN="fake-token-not-used" \
-    GITHUB_REPOSITORY="octocat/hello-world" GITHUB_WORKSPACE="$(pwd)" \
-    node packages/ci/dist/queue-action.js; echo "EXIT CODE: $?"
-::error::adrkit queue: could not load the ADR corpus at '/tmp/fail-closed-test/fixture-file': ENOTDIR: not a directory, scandir '/tmp/fail-closed-test/fixture-file'
+Running the old and new committed bundles side by side against the real
+checked-in fixture produces byte-identical output:
+
+```console
+$ env -i PATH="$PATH" HOME="$HOME" \
+    INPUT_DIR="fixtures/fail-closed-invalid-corpus-dir" \
+    GITHUB_REPOSITORY="mbeacom/adrkit-t018-dogfood" \
+    GITHUB_API_URL="https://127.0.0.1:9" \
+    GITHUB_TOKEN="bogus-token-not-a-real-credential" \
+    INPUT_TOKEN="bogus-token-not-a-real-credential" \
+    bun packages/ci/dist/queue-action.js; echo "EXIT CODE: $?"
+::error::adrkit queue: could not load the ADR corpus at 'fixtures/fail-closed-invalid-corpus-dir': ENOTDIR: not a directory, scandir '<abs path>/fixtures/fail-closed-invalid-corpus-dir'
 EXIT CODE: 1
 ```
+
+Both bundles: exit `1`, and output SHA-256
+`e99d2b832e5495654c2d82646df8ab922ec0039445e5cbb23c7952409ec8f43d` — equal, so
+byte-identical rather than merely similar.
+
+Two details of that invocation are load-bearing:
+
+- **`GITHUB_API_URL` points at a dead port** (`https://127.0.0.1:9`), and the
+  token is deliberately bogus. Had the Action attempted *any* GitHub API call
+  before failing, it would have surfaced as a connection or auth error instead
+  of the corpus-load message. Getting the corpus-load message means execution
+  never reached a network call — which is the actual claim being made.
+- **`env -i`** clears the ambient environment, so no inherited `GITHUB_TOKEN`
+  or proxy setting from the developer's shell could quietly make a real request
+  succeed.
+
+One correction to earlier write-ups of this probe: the `::error::` line is
+written to **stdout**, not stderr. Both bundles produced zero bytes on stderr.
+That does not affect the conclusion (the workflow asserts on step outcome and
+issue mutation, not on stream) but the earlier description was inaccurate and
+is fixed here rather than propagated.
 
 The Action exits non-zero immediately (no network round trip's worth of
 latency) with a message tied precisely to the corpus-load `catch` block,
 confirming the failure occurs at that boundary and not, e.g., from an
-auth/network error further down. The `896391cc` and `bbe63e01` bundles were
-run one after the other against the same fixture and produced the identical
-message and exit code above, so the regenerated bundle preserves the
-boundary. That is an observation, not an inference from an unchanged file.
+auth/network error further down. That is an observation, not an inference from
+an unchanged file.
 
 ### The workflow: `arb-queue-fail-closed.yml`
 
@@ -497,7 +632,7 @@ missing scope; that would make any observed failure ambiguous between
    `{number, state, title, updatedAt, bodySha256}`.
 2. **Run the Action** (`continue-on-error: true`) against
    `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
-   `mbeacom/adrkit/packages/ci/queue@bbe63e017274f173dbb40eeaceccd17df346b32b`
+   `mbeacom/adrkit/packages/ci/queue@c3dff3a7a9c3df44233809423eb59a3505fcf6f5`
    used by `arb-queue.yml`, pointed at the invalid fixture instead of
    `docs/adr`.
 3. **Snapshot after** — the same script, run again.
@@ -528,56 +663,73 @@ the existing `test-assert-managed-issue-body.sh`.
 
 | Field | Expected | Observed |
 |-------|----------|----------|
-| Pinned adrkit ref | `bbe63e017274f173dbb40eeaceccd17df346b32b` | `bbe63e017274f173dbb40eeaceccd17df346b32b` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@bbe63e017274f173dbb40eeaceccd17df346b32b'`) |
+| Pinned adrkit ref | `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` | `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` (confirmed via the run's own action-download log line: `Download action repository 'mbeacom/adrkit@c3dff3a7a9c3df44233809423eb59a3505fcf6f5'`) |
 | Fixture | `fixtures/fail-closed-invalid-corpus-dir` (plain file, not a directory) | (unchanged) |
 | `queue` step outcome | `failure` | `failure` |
 | `queue` step `issue-number` output | (empty/unset) | (empty/unset) |
 | Issue mutation | zero (before/after snapshot hashes equal) | zero — hashes equal, issue count unchanged at 1 |
 | Workflow conclusion | `success` (workflow succeeds *because* the expected failure + zero-write proof both held) | `success` |
 
-**Live run:** `30169579874` —
-<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30169579874>
-— dispatched against branch `mbeacom-repin-adrkit-bbe63e01` at commit
-`8d43f4b` (PR [#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8), the
-repin to `bbe63e01`) — conclusion: `success`. The `queue` step's own error
-output was:
+**Live run:** `31288359485` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31288359485>
+— dispatched against branch `mbeacom-repin-queue-action-v0-4-0` at commit
+`3bfe15a` (the repin to `c3dff3a7`) — conclusion: `success`. The `queue`
+step's own error output was:
 
 ```
 ##[error]adrkit queue: could not load the ADR corpus at 'fixtures/fail-closed-invalid-corpus-dir': ENOTDIR: not a directory, scandir '/home/runner/work/adrkit-t018-dogfood/adrkit-t018-dogfood/fixtures/fail-closed-invalid-corpus-dir'
 ```
 
 Before/after snapshot SHA-256 (canonicalized):
-`a6eef1edbd86f1acb441af6be587baf51ea25259ae2b4e776088b502db2a57b7` for
-both before and after (equal ⇒ zero mutation across `1` issue(s), the
-same `#3` managed queue issue, `updatedAt` unchanged).
+`91fd7b28452f1502708ae3fde66e91bb7fc4028dcf32c6827e975b1bb9239004` for both
+before and after (equal ⇒ zero mutation across `1` issue(s), the same `#3`
+managed queue issue, `updatedAt` unchanged).
+
+That digest differs from the `a6eef1ed…` recorded under the two previous pins,
+and the difference is fully accounted for: the snapshot includes each issue's
+`updatedAt` and `bodySha256`, and issue `#3` was legitimately re-rendered by
+the `arb-queue.yml` dispatch minutes earlier (see
+[Live dispatch under the current pin](#live-dispatch-under-the-current-pin)).
+What the fail-closed proof asserts is that before and after are equal **to each
+other within this run** — which they are. A digest that matched the old runs
+would in fact have been the surprising result.
 
 Note that this dispatch was made **against the pull request branch, before
-merge**, using `gh workflow run --ref mbeacom-repin-adrkit-bbe63e01`. A
+merge**, using `gh workflow run --ref mbeacom-repin-queue-action-v0-4-0`. A
 `workflow_dispatch` workflow must exist on the default branch to be
 dispatchable at all — both of these do — but the run then executes the
 workflow file *from the dispatched ref*, which is why it picked up the new pin
-while `main` still carried `896391cc`. That is what made it possible to
-produce live consumer-facing evidence for `bbe63e01` as a precondition of the
+while `main` still carried `bbe63e01`. That is what made it possible to
+produce live consumer-facing evidence for `c3dff3a7` as a precondition of the
 repin rather than a follow-up to it.
 
-**Previous dispatch under the old pin (superseded, retained for
+**Previous dispatch under the `bbe63e01` pin (superseded, retained for
+provenance):** run `30169579874` —
+<https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30169579874>
+— branch `mbeacom-repin-adrkit-bbe63e01` at commit `8d43f4b` (PR
+[#8](https://github.com/mbeacom/adrkit-t018-dogfood/pull/8)) — conclusion:
+`success`, with the byte-identical error message and snapshot digest
+`a6eef1ed…`.
+
+**Dispatch under the `896391cc` pin (superseded, retained for
 provenance):** run `30159430259` —
 <https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/30159430259>
 — branch `mbeacom-supreme-disco` (PR #7, the repin to `896391cc`) —
 conclusion: `success`, with the byte-identical error message and the same
-snapshot digest `a6eef1ed…`. The digest matching across the two pins is a
-real continuity check, not a coincidence: it means issue `#3`'s body,
+snapshot digest `a6eef1ed…`. The digest matching across those two pins was a
+real continuity check, not a coincidence: it meant issue `#3`'s body,
 `updatedAt`, state and title were untouched by both runs.
 
-The error message is byte-identical to the one produced under both previous
-pins. Between `efef89b5` and `896391cc` that was a corollary of an unchanged
-`packages/ci/`, so the fail-closed boundary was literally the same compiled
-code. **That argument does not apply to the current pin** — `bbe63e01`
-regenerated `dist/queue-action.js` — which is why the boundary was re-probed
-against the new bundle directly rather than assumed, first locally against the
-committed bundle and then live via run `30169579874` above. The message and
-exit code turned out to be identical anyway, but that is now a measured
-result rather than an inference from an unchanged file.
+The error message is byte-identical to the one produced under all three
+previous pins. Between `efef89b5` and `896391cc` that was a corollary of an
+unchanged `packages/ci/`, so the fail-closed boundary was literally the same
+compiled code. **That argument applies to neither of the last two pins** —
+`bbe63e01` regenerated `dist/queue-action.js` from changed source, and
+`c3dff3a7` regenerated it again from changed *dependencies* — which is why the
+boundary was re-probed against each new bundle directly rather than assumed,
+first locally against the committed bundle and then live via run `31288359485`
+above. The message and exit code turned out to be identical anyway, but that is
+a measured result rather than an inference from an unchanged file.
 
 **Earliest dispatch (superseded, retained for provenance):** run
 `29920390292` —
@@ -630,7 +782,7 @@ the governed corpus here was never mutated.
 | `adr migrate --from madr` | One-way and non-destructive; `--dry-run` leaves files byte-identical; re-running reports `unchanged` (idempotent). At `bbe63e01` it also parses MADR 2.x and Nygard dialects, warns when a written record would be undiscoverable, and offers opt-in `--rename` — see the resolved defects 2 and 3 below. |
 | `adr evaluate` | All eleven Pass 0 rules run offline. `0015` (`one-way-door`) yields `routing: escalate [one-way-door]`; `0014` yields `expiry-sane: fail (info) — expiry-sane.past-or-equal`, consistent with the queue's `overdue` state for the same record. Absent snapshot backing reports `inert`, never a fabricated pass/fail. |
 | `adr queue` | Covered in detail above. Byte-identical at `bbe63e01`. |
-| `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). `adr --version` prints `0.2.0` and is now recorded by `scripts/validate-queue.sh` on every run. |
+| `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). At that pin `adr --version` printed `0.2.0`; at the current `c3dff3a7` pin it prints `0.4.0`. Recorded by `scripts/validate-queue.sh` on every run, without asserting the literal string. |
 | `@adrkit/mcp` | **Original `896391cc` run only, not re-covered at `bbe63e01` except as noted.** All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. At `bbe63e01`, **only `get_decision_context` was re-driven** — see [MCP re-coverage](#mcp-re-coverage-get_decision_context-only). |
 | Determinism | `adr queue --format json` and `adr evaluate --json` each produced a single distinct SHA-256 across three consecutive runs. |
 
@@ -843,6 +995,154 @@ This is maintainer-run technical dogfooding on one machine (macOS, Bun
 boundary at the top of this document. Graph edge rendering, the adapters
 workspace, and Passes 1–3 of the evaluator were not exercised.
 
+## Provenance note on the dispatch commit
+
+All three live dispatches recorded in this README — `31288355812`,
+`31288359485` and `31288387942` — were run against commit
+`3bfe15a96ecbc2015e6cd599910d4ee1f34cd3a5` on branch
+`mbeacom-repin-queue-action-v0-4-0`. That commit was subsequently **rewritten**
+while finishing this README: its message was a placeholder, and it was replaced
+by `be5fdfd`, so `3bfe15a` is no longer an ancestor of the branch.
+
+This is recorded rather than quietly renumbered, because the run ids point at a
+commit that history no longer contains and a reader checking them deserves to
+know why. What matters for the evidence is that the rewrite touched
+`README.md` only: `.github/workflows/arb-queue.yml`,
+`.github/workflows/arb-queue-fail-closed.yml`, `scripts/validate-queue.sh` and
+`scripts/assert-queue-report.ts` are byte-identical between `3bfe15a` and the
+branch head (`git diff 3bfe15a HEAD -- .github/workflows scripts/` is empty).
+The runs therefore executed exactly the pin and assertions being proposed here.
+The stronger form of this evidence — a dispatch from the final commit — is
+available on request, and re-dispatching is cheap; it was not done because the
+managed-issue write is now a same-day no-op and would add a third mutation
+record without adding information.
+
+---
+
+## Re-validation against `c3dff3a7` (adrkit v0.4.0) (2026-08-08)
+
+The repin from `bbe63e01` to `c3dff3a7` was gated on re-validating this
+repository against the new commit *before* changing any pin, and on live
+consumer-facing dispatch evidence *before* opening the PR. This section records
+what that run did and what it found, including the parts that diverged from
+what was expected going in.
+
+### Method
+
+Both commits were fetched at their exact SHAs into separate temporary
+directories and compared file-by-file; the **committed `dist/` bundles** were
+then driven side by side rather than rebuilt, because the bundle is what a
+consumer of the Action actually executes. This differs deliberately from the
+`bbe63e01` re-validation, which built from source: the question here is not
+"does the source behave the same" — the Action source is provably identical —
+but "does the regenerated bundle behave the same". Sequence:
+
+1. Resolved `v0.4.0` through the GitHub API and dereferenced it, rather than
+   trusting the tag name (see [Pinned adrkit commit](#pinned-adrkit-commit)).
+2. `diff -rq` across `packages/ci/` at both pins, to establish exactly what
+   moved.
+3. Re-probed the fail-closed boundary against both committed bundles with an
+   unreachable `GITHUB_API_URL`, comparing outputs by SHA-256.
+4. Re-derived the three recorded digests (QueueReport JSON, Markdown, corpus
+   fingerprint) at both pins.
+5. Only then were the pins changed, and `./scripts/validate-queue.sh` re-run
+   end-to-end at the new pin.
+6. Pushed and dispatched both workflows live against the branch.
+
+### Outputs are byte-identical across the pins
+
+Re-derived at both pins against this repository's real 15-record corpus, and
+matching the values recorded elsewhere in this README:
+
+| Artifact | `bbe63e01` | `c3dff3a7` |
+|----------|------------|------------|
+| QueueReport JSON (SHA-256) | `716e21b7…` | `716e21b7…` |
+| Rendered Markdown (SHA-256) | `fbcd4d5f…` | `fbcd4d5f…` |
+| Corpus fingerprint | `1664c5af…` | `1664c5af…` |
+| Fail-closed stdout+stderr (SHA-256) | `e99d2b83…` | `e99d2b83…` |
+| `adr lint` | 15 records, 0 errors, 0 warnings | 15 records, 0 errors, 0 warnings |
+| `adr --version` | `0.2.0` | `0.4.0` |
+| `assert-queue-report.ts` | 13/13 pass | 13/13 pass |
+
+**A caveat that cost real time and is worth recording: these digests are
+path-dependent.** `adr queue` embeds each record's `sourcePath` in the report,
+so the digest depends on how `--dir` was spelled. Reproducing `716e21b7…`
+requires invoking with the **relative** `--dir docs/adr` from the repository
+root, exactly as `scripts/validate-queue.sh` does. An absolute `--dir` yields
+`ff242b71…`, and running from a different checkout of the same corpus yields
+`53b2d874…` — all three from byte-identical inputs. The first attempt at this
+re-validation used an absolute path and produced an apparent mismatch that
+looked like a regression and was not one. Any future digest comparison must
+match the script's invocation form, and the mismatch is a property of the
+invocation rather than of the corpus or the tool.
+
+### The QueueReport contract widened (compatibly)
+
+`specs/007-arb-queue/contracts/queue-report.md` changed between the two pins.
+`CorpusFinding.severity` widened from the `"error"` literal to
+`"error" | "warn"`, and `corpus.file-skipped` is now emitted at `warn` —
+described upstream as a governance gap rather than a broken corpus, so it never
+changes the exit code and never fails the Action.
+
+This is a **backward-compatible widening**: `report.version` is still `"1"`,
+every field that existed before still exists with the same meaning, and no
+consumer that handled `"error"` can be broken by the addition. Verified at the
+pinned commit rather than taken from the changelog —
+`packages/core/src/queue/types.ts:51` now reads `severity: 'error' | 'warn';`,
+and `packages/core/src/queue/findings.ts` registers the new code in a
+`WARN_CORPUS_CODES` set.
+
+It is called out here because `scripts/assert-queue-report.ts` asserts
+`totalCorpusFindings === 0`, and that assertion is now load-bearing in a way it
+was not before — a `warn`-severity finding can now occur, where previously it
+could not. Empirically this corpus still produces **0** findings, so there is
+no impact today. But the *reason* the assertion is safe changed, which is
+exactly the kind of thing this repository records rather than glosses. The full
+treatment, including a reproduction proving the assertion still fires for the
+right reason, is under
+[Two things this run found that are not fixed](#two-things-this-run-found-that-are-not-fixed).
+
+### Three things diverged from what was expected
+
+Recorded because a re-validation that only confirms its own premises has not
+been performed.
+
+1. **The bundle moved for a different reason than assumed.** The working
+   hypothesis was that `packages/ci/dist/*` regenerated because bundled
+   first-party dependencies (`packages/core` and friends) moved beneath it. The
+   actual cause is visible in `packages/ci/package.json`: `@actions/core` went
+   `^1.11.1` → `^3.0.1` and `@actions/github` went `^6.0.1` → `^9.1.1` — two
+   major upgrades of the GitHub Actions toolkit itself. That is a materially
+   different risk profile from a first-party refactor, and arguably a better
+   reason to have re-probed the fail-closed boundary rather than inferred it.
+
+2. **The fail-closed `::error::` line is on stdout, not stderr.** Both bundles
+   write it to stdout; stderr is `0` bytes in both. This does not weaken the
+   proof — the exit code is still `1`, the message is still byte-identical
+   across pins, and no Octokit client is constructed — but the earlier
+   description of it as a stderr message was wrong, and a proof whose stated
+   mechanics are wrong is not a proof.
+
+3. **The managed-issue dispatch was *not* a no-op on first run.** See
+   [Live dispatch under the current pin](#live-dispatch-under-the-current-pin)
+   for the full account: the body legitimately changed because
+   `arb-queue.yml` renders with *today's* date and two weeks of calendar drift
+   had accumulated since the previous render. Idempotency is real but had to be
+   demonstrated by a separate same-day re-dispatch rather than claimed from the
+   first run.
+
+### What this does not establish
+
+The same boundaries as every prior section here. This is a consumer-side
+integration record, not upstream test coverage, and not SC-004/T048 evidence —
+see [Status boundary](#-status-boundary--this-is-not-sc-004-evidence). A newer
+pin does not make it more external. In particular, the claim "the Action source
+did not change" is a statement about `packages/ci/src/` and
+`packages/ci/queue/action.yml` only; the bundle that actually runs *did*
+change, which is why it was re-probed rather than assumed.
+
+---
+
 ## Re-validation against `bbe63e01` (2026-07-25)
 
 The repin from `896391cc` to `bbe63e01` was gated on re-validating this
@@ -1043,48 +1343,74 @@ reproductions the same way #39–#42 were.
    not scoped to "no skipped files", so they encode an assumption the fix
    invalidates for consumers generally.
 
-   **That is now measured, not predicted.** Running this repository's real
-   corpus through the `#52` branch at `ffdde26`: `totalCorpusFindings` is
-   still `0`, `scripts/assert-queue-report.ts` passes **unmodified**, and the
-   QueueReport is byte-identical to the `bbe63e01` output at SHA-256
-   `716e21b7…`. So the next repin will not break CI — the tightening is a
-   correctness-of-intent change, not a repair.
+   **This is no longer a forward dependency — the fix has landed and is the
+   current pin.** [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52)
+   is included in `c3dff3a7` (adrkit `v0.4.0`). What was predicted above is now
+   observed. Read directly at the pinned commit,
+   `packages/core/src/queue/types.ts:51` now reads
+   `severity: 'error' | 'warn';` (it read `severity: 'error';` at `bbe63e01`),
+   and `packages/core/src/queue/findings.ts` registers `corpus.file-skipped` in
+   a `WARN_CORPUS_CODES` set.
 
-   The fix's shape is now known:
-   [mbeacom/adrkit#52](https://github.com/mbeacom/adrkit/pull/52) widens
-   `CorpusFinding.severity` from the `'error'` literal to `'error' | 'warn'`
-   and emits `corpus-file-skipped` as a new `corpus.file-skipped` code at
-   `warn`, chosen so that neither the CLI exit code nor the Action's
-   `setFailed` — both of which already filter on `error` alone — starts
-   failing on corpora that pass today.
+   **The prediction held against this repository's real corpus.**
+   `totalCorpusFindings` is still `0`, `scripts/assert-queue-report.ts` passes
+   **unmodified** (all 13 assertions), and the QueueReport is byte-identical to
+   the `bbe63e01` output at SHA-256 `716e21b7…`. The repin did not break CI —
+   the widening is a correctness-of-intent change, not a repair.
 
-   **These assertions were deliberately not changed as part of this repin.**
-   At `bbe63e01` the severity field is still the `'error'` literal —
-   `packages/core/src/queue/types.ts:45` reads `severity: 'error';`, read
-   directly at the pinned commit rather than taken from the upstream
-   description — so a `warn`-severity corpus finding cannot occur: "assert no
-   corpus findings" and "assert no *error-severity* corpus findings" are the
-   same assertion against the code actually under test here. Writing the
-   narrower form now would be asserting against behavior not present at the
-   pinned commit, which is the kind of thing this repository exists not to do.
+   **The assertions were still deliberately not tightened here, and the reason
+   changed.** Previously the narrow and blanket forms were the *same*
+   assertion, because a `warn`-severity corpus finding could not occur at the
+   pinned commit. That is no longer true: at `c3dff3a7` one can occur, so
+   `totalCorpusFindings === 0` is now load-bearing in a genuinely new way. It
+   still holds for this corpus — empirically `0` findings — but it holds for a
+   different reason than before, and that distinction is exactly the kind of
+   thing this repository records rather than glosses.
 
-   When the pin moves to a commit that carries #52, tighten both to
-   error-severity and note the trade-off being accepted: the current blanket
-   form fails **loudly** on any unexpected finding, whereas a filtered form
-   (`corpusFindings.filter(f => f.severity === 'error')`) fails **quietly** if
-   the field is ever renamed or restructured — an empty filter result is
-   indistinguishable from a clean corpus. So whoever makes that change should
-   verify the tightened assertion actually *fires* against a corpus with a
-   skipped file, not merely that it still passes against this one.
+   The trade-off the README previously flagged is why it stays blanket for now:
+   the current form fails **loudly** on any unexpected finding, whereas a
+   filtered form (`corpusFindings.filter(f => f.severity === 'error')`) fails
+   **quietly** if the field is ever renamed or restructured — an empty filter
+   result is indistinguishable from a clean corpus. Against a corpus that is
+   supposed to have zero findings of *any* severity, the loud form is strictly
+   more informative.
 
-   **The case that makes it fire is already known, so there is no excuse for
-   skipping that step.** One `proposed` `arb`-tier record in a corpus
-   directory under a filename that does not match `<id>-<slug>.md` produces,
-   under #52, `totalCorpusFindings = 1` with a single `warn`-severity
-   `corpus.file-skipped` entry, and a rendered `## Corpus Findings` section
-   with a `1 corpus finding(s)` summary — tripping every one of the four
-   assertions listed above. Point the tightened versions at that corpus and
-   confirm they still reject it for the *right* reason before trusting them.
+   **The verification step the previous version of this section demanded was
+   performed rather than deferred.** It asked whoever moved the pin to confirm
+   the assertions actually *fire* against a corpus with a skipped file, not
+   merely that they still pass against this one. Built at `c3dff3a7`: a single
+   `proposed` `arb`-tier record under a filename that does not match
+   `<id>-<slug>.md`, in a throwaway `/tmp` corpus, yields
+
+   ```json
+   {
+     "totalItems": 0,
+     "totalCorpusFindings": 1,
+     "corpusFindings": [
+       {
+         "sourcePath": "skiptest/adr/no-id-slug-name.md",
+         "code": "corpus.file-skipped",
+         "severity": "warn",
+         "message": "Markdown file in the corpus directory is not a discoverable ADR record and was skipped; rename it to <id>-<slug>.md (four or more leading digits) for it to be linted and enforced"
+       }
+     ]
+   }
+   ```
+
+   with `adr queue` still exiting `0` (the `warn` severity does not change the
+   exit code, as designed), the Markdown rendering reporting
+   `1 corpus finding(s)` with a `## Corpus Findings` section, and
+   `scripts/assert-queue-report.ts` **failing loudly** against it:
+
+   ```
+   FAIL: zero corpus findings (got 1)
+   FAIL: corpusFindings array is empty
+   Queue validation FAILED: 9 assertion(s) did not hold.
+   ```
+
+   So the blanket assertions are confirmed to reject a skipped-file corpus for
+   the right reason, not merely to pass against a clean one. The `/tmp` corpus
+   was discarded; `docs/adr/**` was never touched.
 
    To be unambiguous about where that instruction comes from: it is a
    convention adopted **in this repository**, arrived at while re-validating
