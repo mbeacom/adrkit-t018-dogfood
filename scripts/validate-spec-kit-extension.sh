@@ -56,6 +56,19 @@ assert_contains() { # id, expectation, needle, haystack
 	fi
 }
 
+emit_evidence() {
+	{
+		echo "# Expected vs observed — spec-kit ${SPECIFY_VERSION}, adrkit extension ${ADRKIT_EXT_TAG} (sha256 ${ADRKIT_EXT_SHA256})"
+		echo
+		echo "| id | expectation | expected | observed | outcome |"
+		echo "|---|---|---|---|---|"
+		for row in "${ROWS[@]}"; do
+			IFS='|' read -r id what expected observed outcome <<<"$row"
+			echo "| \`$id\` | $what | \`$expected\` | \`$observed\` | **$outcome** |"
+		done
+	} >"${EVIDENCE_OUT:-$WORK/evidence.md}"
+}
+
 ASSET="$WORK/adrkit.zip"
 
 # --------------------------------------------------------------------------
@@ -64,14 +77,26 @@ ASSET="$WORK/adrkit.zip"
 # PIN-1 is the load-bearing one and it runs first: the artifact is only allowed
 # to reach `specify extension add` after its digest matches the pin. A mismatch
 # aborts here, before any install side effect.
+#
+# The download is routed through an assertion rather than left to `set -e`. A
+# 404 or a network failure is a real result about the pinned artifact, and it
+# should be recorded as a FAIL row in the evidence table like everything else —
+# not vanish into a bare non-zero exit with no evidence written.
 # --------------------------------------------------------------------------
 echo "== pinned inputs =="
-curl -fsSL --retry 3 -o "$ASSET" "$ADRKIT_EXT_URL"
-OBSERVED_SHA="$(sha256sum "$ASSET" | cut -d' ' -f1)"
+curl -fsSL --retry 3 -o "$ASSET" "$ADRKIT_EXT_URL" && CURL_RC=0 || CURL_RC=$?
+assert_eq "PIN-0" "release asset downloads from the pinned URL" "0" "$CURL_RC"
+
+if [ "$CURL_RC" -ne 0 ]; then
+	OBSERVED_SHA="UNAVAILABLE (download failed, curl exit $CURL_RC)"
+else
+	OBSERVED_SHA="$(sha256sum "$ASSET" | cut -d' ' -f1)"
+fi
 assert_eq "PIN-1" "release asset matches the pinned sha256 (checked before install)" \
 	"$ADRKIT_EXT_SHA256" "$OBSERVED_SHA"
 if [ "$ADRKIT_EXT_SHA256" != "$OBSERVED_SHA" ]; then
-	echo "REFERENCE VALIDATION FAILED: pinned artifact digest mismatch; refusing to install" >&2
+	emit_evidence
+	echo "REFERENCE VALIDATION FAILED: pinned artifact unusable; refusing to install" >&2
 	exit 1
 fi
 
@@ -223,16 +248,7 @@ assert_eq "FC-4c" "draft wrote no record when the plan was missing" "$CORPUS_BEF
 # --------------------------------------------------------------------------
 # Machine-readable evidence for the tracked index.
 # --------------------------------------------------------------------------
-{
-	echo "# Expected vs observed — spec-kit ${SPECIFY_VERSION}, adrkit extension ${ADRKIT_EXT_TAG} (sha256 ${ADRKIT_EXT_SHA256})"
-	echo
-	echo "| id | expectation | expected | observed | outcome |"
-	echo "|---|---|---|---|---|"
-	for row in "${ROWS[@]}"; do
-		IFS='|' read -r id what expected observed outcome <<<"$row"
-		echo "| \`$id\` | $what | \`$expected\` | \`$observed\` | **$outcome** |"
-	done
-} >"${EVIDENCE_OUT:-$WORK/evidence.md}"
+emit_evidence
 
 echo
 echo "assertions: ${#ROWS[@]}, failures: $FAILURES"

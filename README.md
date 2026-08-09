@@ -358,11 +358,11 @@ being true. The matrix runs the full assertion set against the range's two
 endpoints and its midpoint (`0.13.0`, `0.14.4`, `0.15.1`), on every push and
 weekly, so upstream drift turns this red here rather than in someone's editor.
 
-### What it asserts (45 assertions per version)
+### What it asserts (46 assertions per version)
 
 | Group | Proves |
 |---|---|
-| `PIN-*` | The downloaded release asset matches the pinned sha256 — checked **before** anything is installed, so a mismatch fails closed with no side effect — the installed manifest declares the pinned extension version, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
+| `PIN-*` | The release asset downloads from the pinned URL, and matches the pinned sha256 — both checked **before** anything is installed, so a 404, a network failure, or a digest mismatch fails closed with no side effect and still writes its evidence row. The installed manifest declares the pinned extension version, and the spec-kit and `adr` versions are exactly the pinned ones. Every later row is only as trustworthy as these. |
 | `INS-*` | The extension installs, and all three commands render for the agent. |
 | `HOOK-*` | The `after_plan` hook is registered, targets the read-only `check` command, and is `optional: true`. `HOOK-4` asserts **no** hook targets the writing `draft` command. |
 | `PKG-*` | The consumer receives no test suite, tsconfig, package.json, or node_modules; the four scripts arrive; the rendered command points at the installed script path. `PKG-x-*` asserts the executable bit **in both directions**: set on spec-kit >= 0.14.4, and *not* set on 0.13.0 — see the exec-bit boundary below. |
