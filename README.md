@@ -995,27 +995,41 @@ This is maintainer-run technical dogfooding on one machine (macOS, Bun
 boundary at the top of this document. Graph edge rendering, the adapters
 workspace, and Passes 1–3 of the evaluator were not exercised.
 
-## Provenance note on the dispatch commit
+## Provenance note on the dispatch commits
 
-All three live dispatches recorded in this README — `31288355812`,
-`31288359485` and `31288387942` — were run against commit
-`3bfe15a96ecbc2015e6cd599910d4ee1f34cd3a5` on branch
-`mbeacom-repin-queue-action-v0-4-0`. That commit was subsequently **rewritten**
-while finishing this README: its message was a placeholder, and it was replaced
-by `be5fdfd`, so `3bfe15a` is no longer an ancestor of the branch.
+The live dispatches recorded in this README were run twice, against two
+different commits on branch `mbeacom-repin-queue-action-v0-4-0`, and both sets
+are recorded rather than the inconvenient one being dropped.
 
-This is recorded rather than quietly renumbered, because the run ids point at a
-commit that history no longer contains and a reader checking them deserves to
-know why. What matters for the evidence is that the rewrite touched
-`README.md` only: `.github/workflows/arb-queue.yml`,
-`.github/workflows/arb-queue-fail-closed.yml`, `scripts/validate-queue.sh` and
-`scripts/assert-queue-report.ts` are byte-identical between `3bfe15a` and the
-branch head (`git diff 3bfe15a HEAD -- .github/workflows scripts/` is empty).
-The runs therefore executed exactly the pin and assertions being proposed here.
-The stronger form of this evidence — a dispatch from the final commit — is
-available on request, and re-dispatching is cheap; it was not done because the
-managed-issue write is now a same-day no-op and would add a third mutation
-record without adding information.
+The first set — `31288355812`, `31288359485` and `31288387942` — ran against
+`3bfe15a96ecbc2015e6cd599910d4ee1f34cd3a5`. That commit carried a placeholder
+message and was rewritten while finishing this README, so `3bfe15a` is no
+longer an ancestor of the branch and those run ids point at a commit history no
+longer contains.
+
+Rather than leave the evidence attached to an unreachable commit, both
+workflows were **re-dispatched from the final commit**
+`ce63d8dd5c24f6ab2215ac44643f4af1fc7f356c`:
+
+| Run | Workflow | Head | Conclusion | Resolved Action ref |
+|-----|----------|------|------------|---------------------|
+| [`31288615543`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31288615543) | `arb-queue.yml` | `ce63d8d` | `success` | `mbeacom/adrkit@c3dff3a7…` |
+| [`31288621287`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31288621287) | `arb-queue-fail-closed.yml` | `ce63d8d` | `success` | `mbeacom/adrkit@c3dff3a7…` |
+
+Both reproduced the earlier results exactly. The fail-closed run reported
+before/after snapshot SHA-256
+`91fd7b28452f1502708ae3fde66e91bb7fc4028dcf32c6827e975b1bb9239004` — equal, and
+equal to the `3bfe15a` run — with `assert-no-issue-mutation OK: zero issue
+mutations across 1 issue(s)`. The managed-issue run left issue `#3`'s body at
+`28590cce9abbed8cafd320f264c5f6283757ffac8c28035d65a75caa77dd65ad` and its
+`updatedAt` at `2026-08-09T01:29:11Z` — both unchanged by a run that executed at
+`01:36`, which is the same-day idempotent no-op described above, now
+independently reproduced at the final commit.
+
+The rewrite touched `README.md` only —
+`git diff 3bfe15a ce63d8d -- .github/workflows scripts/` is empty — so the two
+sets of runs executed identical pins and identical assertions, which is
+consistent with them producing identical evidence.
 
 ---
 
