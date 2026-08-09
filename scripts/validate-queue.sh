@@ -23,21 +23,28 @@
 # committed to this repository.
 set -euo pipefail
 
-# Pin: exact adrkit commit dogfooded by this repository. Currently the tip of
-# adrkit `main` as of 2026-07-25 — the squash-merge of PR mbeacom/adrkit#45,
-# which closes the four defects (mbeacom/adrkit#39-#42) that this repository's
-# own dogfood run found. It supersedes 896391cc385798f7f08c5694f70acaf0342789e9.
+# Pin: exact adrkit commit dogfooded by this repository. This is the commit
+# behind adrkit's `v0.4.0` release tag. It supersedes
+# bbe63e017274f173dbb40eeaceccd17df346b32b, which in turn superseded
+# 896391cc385798f7f08c5694f70acaf0342789e9.
 #
-# Unlike the previous repin, `packages/ci/` is NOT byte-identical across this
-# one: `packages/ci/src/comment.ts` changed and both committed bundles
-# (dist/index.js, dist/queue-action.js) were regenerated. `action.yml` is
-# unchanged. The corpus-load fail-closed boundary was re-probed directly
-# against the regenerated bundle rather than inferred — see README.md
+# No Action source changed across this repin: `packages/ci/src/` and
+# `packages/ci/queue/action.yml` are byte-identical to the previous pin. The
+# only changed files under packages/ci/ are the two committed bundles
+# (dist/index.js, dist/queue-action.js), `package.json`, and a new
+# test/bundle-scope.test.ts. The bundles moved because bundled dependencies
+# moved beneath them — notably the @actions/core ^1 -> ^3 and @actions/github
+# ^6 -> ^9 major bumps in packages/ci/package.json. That is a weaker claim
+# than a source change, so the corpus-load fail-closed boundary was re-probed
+# directly against the regenerated bundle rather than inferred — see README.md
 # ("Fail-closed evidence").
 #
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
-# commit").
-ADRKIT_REF="bbe63e017274f173dbb40eeaceccd17df346b32b"
+# commit"). adrkit also publishes a moving `v0` major tag that currently points
+# at this same commit; it is useful for DISCOVERING the current SHA, but
+# adopting it as the pin would destroy the immutability this repository exists
+# to demonstrate.
+ADRKIT_REF="c3dff3a7a9c3df44233809423eb59a3505fcf6f5"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 
