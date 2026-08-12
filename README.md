@@ -33,6 +33,13 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   observed here — which falsified a coverage claim written earlier in the same
   change. See
   [Re-validation against `c5dc677f`](#re-validation-against-c5dc677f-adrkit-v060-2026-08-11).
+- **Marker coverage (2026-08-11)** — the gap that repin opened is closed in the
+  same change. Two source files now declare inbound `@adr` markers and six
+  fixtures pin the rules around them, asserted by
+  [`scripts/validate-markers.sh`](scripts/validate-markers.sh) (26 assertions)
+  and re-run in CI. Every assertion was **observed failing** under a
+  perturbation before being credited as coverage. See
+  [Marker coverage](#marker-coverage-was-the-gap-this-repin-opened-and-it-is-now-closed).
 - **MCP server for coding agents (2026-08-09)** — a pinned, integrity-verified
   `@adrkit/mcp` configuration is checked in for Copilot cloud agent, Copilot code
   review, Copilot CLI, and VS Code, and validated in CI against this
@@ -268,7 +275,9 @@ previously read `checked: 3 governing, …`.
 |------|---------|
 | `docs/adr/0001`–`0012` | Phase 3 T018 corpus: `accepted` records governing `src/payments/**` and other component boundaries. Preserved as-is. |
 | `docs/adr/0013`–`0015` | Phase 6 ARB queue corpus: `proposed` records exercising the `auto`, `async`, and `arb` routing tiers with deterministic SLA state, approvals, objections, and quorum. |
-| `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. |
+| `src/payments/api/handler.ts` | Governed source subset from Phase 3 T018, exercised by the `adr.yml` PR-governance workflow. Also declares `@adr 0014` — the *merge* marker case, where one decision is reached by both a pattern and an inbound declaration. |
+| `src/platform/ledger-client.ts` | Marker-only governance fixture: declares `@adr 0005, 0015`, neither of which names `src/platform/**` in `affects`, so both come back with an empty `firedMatchers`. See "Marker coverage". |
+| `fixtures/markers/**` | Six checked-in marker fixtures covering the accepted introducers, the marker-looking lines that must **not** declare (trailing, string literal, prose, fenced examples, markdown's reduced introducer set), the two unresolvable forms, and an over-window file that forces a truncated scan. |
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so since `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
@@ -292,6 +301,9 @@ previously read `checked: 3 governing, …`.
 | `scripts/validate-mcp.sh` | Verifies the pinned `@adrkit/mcp` tarball's `sha512`, proves its `src/` is byte-identical to `packages/mcp/src` at the pinned adrkit commit, asserts config agreement, drives the server over stdio JSON-RPC, and asserts the corpus was not mutated. |
 | `scripts/assert-mcp-config.mjs` | Network-free assertions that the three checked-in MCP configs and the Copilot setup-steps workflow agree with each other and with the pin (28 assertions). |
 | `scripts/assert-mcp-surface.mjs` | stdio JSON-RPC assertions against the verified server install: four-tool surface, read-only annotations, governance resolution, nested-matcher discrimination, input rejection, and stdout protocol hygiene (28 assertions). |
+| `.github/workflows/marker-validation.yml` | Marker validation: runs `scripts/validate-markers.sh --self-test` on PR, on `main`, weekly, and on demand. The `--self-test` pass is why it runs in CI rather than by hand — it fails the run if an assertion has become vacuous. |
+| `scripts/validate-markers.sh` | Captures `adr explain --json` per marker fixture plus one batch `adr check --json` against the pinned adrkit build, cross-checks the pin against `validate-queue.sh`, and delegates every correctness decision to `assert-markers.mjs`. `--self-test` perturbs each fixture and requires the matching assertion to fail. |
+| `scripts/assert-markers.mjs` | Pure, network-free assertions over those captures: 26 checks across marker resolution, the negative cases, the unresolvable findings, the measured truncation extent, and the batch `markerScan`. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -1586,43 +1598,153 @@ under `src/payments/**` — so no `declared by` edge was rendered and the marker
 scan changed nothing about the outcome, which is exactly the "markers never
 influence exit status" property v0.5.0 claims.
 
-### What this repository does *not* exercise at this pin
+### Marker coverage was the gap this repin opened, and it is now closed
 
-Stated explicitly, because the headline feature of `v0.5.0`/`v0.6.0` is inbound
-`@adr` markers and this corpus barely touches them:
+The list below is what this repository could *not* reach when the repin landed.
+It is retained as the record of that gap; each item now names what closed it.
 
-- **No file in this repository declares an `@adr` marker.** Every governance
-  edge here is resolved from a record's `affects` pattern. `declared: []` and
-  `declaredBy` are structurally covered — the fields appear and are empty — but
-  the marker-to-record *resolution* path is not exercised at all, and neither is
-  the `declared by` comment rendering the Action now performs.
-- **Truncation is exercised by the Action, but not by the CLI path.** This
-  distinction was initially recorded the wrong way round and is corrected here
-  rather than quietly fixed. Running `adr check`/`adr explain` against the
-  governed file `src/payments/api/handler.ts` scans 581 bytes against an
-  8192-byte window, so `truncated` is always `false` there. But the Action scans
-  every changed file in a pull request, not just governed ones — and on the
-  repin PR itself it reported `12 scanned, 0 absent, 0 unreadable, 0
-  out-of-tree, 3 truncated, 0 skipped`. The three are exactly the changed files
-  over 8192 bytes: `README.md` (126,193), `scripts/assert-mcp-config.mjs`
-  (11,997), and `scripts/validate-mcp.sh` (9,032). What is still **not**
-  observed here is the *measurement* of that truncation: the `scannedBytes` /
-  `fileBytes` pair added in v0.6.0 is an `explain --json` surface, and the
-  Action's summary reports only a count of truncated paths, so the non-zero
-  unscanned remainder those fields exist for has not been read at this pin.
-- **No dangling marker.** The dangling-marker warning `explain` documents is
-  unreached.
-- **The 3,000-file marker cap is not approached** — the largest scan observed
-  here is 12 candidate files.
-- **The `localeCompare` → code-unit sort fix is not independently verified
-  here.** Byte-identical `queue` output was observed in a single locale, which
-  is consistent with the fix but does not test it; a cross-locale run would be
-  required, and was not performed. adrkit additionally scopes the fix itself,
+- ~~**No file in this repository declares an `@adr` marker.**~~ Two now do, and
+  they were chosen to cover both edge directions rather than to demonstrate the
+  syntax twice. `src/payments/api/handler.ts` declares `0014`, which already
+  reaches it by pattern — the *merge* case, where one decision carries both
+  `via path:` and `declared by`. `src/platform/ledger-client.ts` declares
+  `0005, 0015`, neither of which names `src/platform/**` in `affects` — the
+  *marker-only* case, where the decision comes back with an **empty
+  `firedMatchers`** and a populated `declaredBy`. That empty matcher list is the
+  observable difference between "a record reached this file" and "this file
+  reached a record", and it is the thing a pattern cannot express without the
+  orders records claiming a directory they do not own.
+- ~~**No dangling marker.**~~ `fixtures/markers/unresolvable.ts` carries both
+  unresolvable forms and pins their deliberately different severities:
+  `@adr 9999` is `dangling-marker` at **`warn`**, and `@adr payments:0012` is
+  `marker-unresolvable` at **`info`**. The second is the sharper case — `0012`
+  *does* exist in this corpus, so a log-qualified ref must not quietly bind to
+  the local record of the same id just because the number matches.
+- ~~**No truncated scan** … the non-zero unscanned remainder is not measured.~~
+  `fixtures/markers/over-window.ts` is 23,156 bytes with its marker in the
+  header. Observed: `truncated: true`, `fileBytes: 23156`, and
+  `scannedBytes: 8133` — **59 bytes short of the 8192 window**, which is the
+  line-boundary cut the v0.6.0 fields were added to expose, and the number that
+  `min(fileBytes, windowBytes)` would have gotten wrong. The header marker still
+  resolves, so truncation does not lose a declaration that was inside the
+  window. `fileBytes` is cross-checked against `wc -c` rather than trusted from
+  the tool that reported it.
+- **Still not exercised: the 3,000-file marker cap.** The largest scan observed
+  here is 12 candidate files, against a cap of 3,000. Nothing in this repository
+  approaches it, and `skippedPaths` has never been non-empty.
+- **Still not exercised: `absent`, `unreadable`, and `out-of-tree` scan states.**
+  All three are asserted to be zero (`SCAN-4`), which pins that they do not fire
+  spuriously — but a passing zero is not coverage of the state itself.
+- **Still not independently verified: the `localeCompare` → code-unit sort fix.**
+  Byte-identical output was observed in a single locale, which is consistent
+  with the fix but does not test it. adrkit additionally scopes the fix itself,
   leaving `packages/core/src/affects/**` on `localeCompare`.
 
-These are gaps in this repository's coverage, not defects in adrkit. They are
-recorded so the passing run above is not mistaken for coverage of the feature
-that motivated the release.
+#### What is asserted, and how it was proven
+
+[`scripts/validate-markers.sh`](scripts/validate-markers.sh) captures
+`adr explain --json` per fixture plus one batch `adr check --json`, and delegates
+every correctness decision to
+[`scripts/assert-markers.mjs`](scripts/assert-markers.mjs) — the same split as
+`validate-queue.sh` / `assert-queue-report.ts`. **26 assertions**, run in CI on
+pull requests, on `main`, weekly, and on demand.
+
+| Group | What is pinned |
+|---|---|
+| `POS-1`–`POS-9` | The merge case; marker-only governance with an empty `firedMatchers`; a pattern-only control on the same file that must carry **no** `declaredBy` key; status bucketing surviving an inbound declaration; the comma list; and the four accepted introducers that must work (`//`, block-comment `*`, markdown `<!--`, MDX `{/*`). |
+| `NEG-1`–`NEG-4` | The marker-looking lines that must **not** declare: trailing, inside a string literal, mid-prose, `@adrkit/core` (no separator), six fenced examples across backtick/tilde/longer-fence/info-string forms, and the five source-language introducers that are not markdown's. |
+| `FIND-1`–`FIND-4` | Dangling at `warn`, foreign-log at `info`, neither producing a governance edge, and `adr check` still exiting `0` — markers never influence exit status. |
+| `TRUNC-1`–`TRUNC-5` | `truncated`, `scannedBytes < fileBytes`, `scannedBytes < windowBytes`, `fileBytes` against `wc -c`, and the header declaration surviving truncation. |
+| `SCAN-1`–`SCAN-4` | The batch `markerScan` the CI Action consumes: candidate count, truncated count, the named truncated path, and the four states that must stay zero. |
+
+Two deliberate choices in how these are written:
+
+- **Negative cases are stated as "the declared set is exactly X", never "Y is
+  absent."** An absence assertion passes trivially the moment the scanner stops
+  finding anything at all. `NEG-1` additionally pins the *introducer of the
+  declaring line*, not just the ref, because every decoy in that fixture names
+  `0001` too — a ref-only assertion would still pass if the trailing marker were
+  the one that resolved.
+- **`TRUNC-3` asserts an inequality, not the literal `8133`.** The exact extent
+  depends on where the fixture's line breaks land, and pinning the literal would
+  make an unrelated edit to the padding look like an adrkit regression.
+
+**Every assertion was observed failing.** `./scripts/validate-markers.sh
+--self-test` perturbs one fixture at a time in a throwaway copy and requires the
+matching assertion to fail — failing the run if the suite still passes (the
+assertion is vacuous) or if it fails without naming the expected id (a different
+assertion is doing the work). 13 perturbations, all observed:
+
+```
+==> Self-test: proving each assertion fails when its property is violated
+ok   POS-1  observed failing when violated (docs/adr/0014-async-review-payments-settlement-cache-invalidation.md)
+ok   POS-2  observed failing when violated (src/platform/ledger-client.ts)
+ok   POS-3  observed failing when violated (src/platform/ledger-client.ts)
+ok   POS-5  observed failing when violated (src/platform/ledger-client.ts)
+ok   POS-6  observed failing when violated (fixtures/markers/not-a-marker.ts)
+ok   POS-7  observed failing when violated (fixtures/markers/fenced-examples.ts)
+ok   POS-8  observed failing when violated (fixtures/markers/markdown-introducers.md)
+ok   POS-9  observed failing when violated (fixtures/markers/mdx-introducer.mdx)
+ok   NEG-1  observed failing when violated (fixtures/markers/not-a-marker.ts)
+ok   NEG-2  observed failing when violated (fixtures/markers/fenced-examples.ts)
+ok   NEG-3  observed failing when violated (fixtures/markers/markdown-introducers.md)
+ok   FIND-1  observed failing when violated (fixtures/markers/unresolvable.ts)
+ok   TRUNC-1  observed failing when violated (fixtures/markers/over-window.ts)
+
+Marker self-test OK: 13 assertions each observed failing when violated.
+```
+
+The self-test earned its keep twice during authoring, and both are recorded
+because they are the argument for having it:
+
+1. `NEG-1` was first written against a hardcoded **line number** (`43`). It
+   failed immediately on the real fixture — the declaration is on line 39 — and
+   was rewritten to assert the declaring line's *content*. A positional
+   assertion would have been both brittle and silent about which line resolved.
+2. The `NEG-1` perturbation itself initially did not modify its target file, so
+   the assertion would have been credited without ever being exercised. The
+   self-test's own guard (`perturbation did not modify <file>`) caught it. A
+   self-test that cannot detect its own no-op is not a self-test.
+
+**Scope limit worth stating plainly:** these assertions pin adrkit's behavior
+as observed at `c5dc677f`. They are not a specification of what markers *should*
+do, and a green run means "the pinned commit still behaves the way this
+repository recorded", not "the marker rules are correct".
+
+### What this repository did *not* exercise when the repin landed
+
+Retained as the record of the gap the repin opened, because the correction
+history matters more than the tidy end state. Every marker item below was closed
+in the same change by [Marker coverage](#marker-coverage-was-the-gap-this-repin-opened-and-it-is-now-closed);
+the remaining gaps are named there rather than repeated here.
+
+- ~~**No file in this repository declares an `@adr` marker.**~~ Closed: two now
+  do, covering the merge case and marker-only governance.
+- **Truncation was recorded backwards, and is corrected here rather than
+  quietly fixed.** The original claim was a flat "no truncated scan", reasoning
+  from `src/payments/api/handler.ts` — 581 bytes against an 8192-byte window, so
+  `truncated` is always `false` on that CLI path. The governance Action then
+  reported `12 scanned, 0 absent, 0 unreadable, 0 out-of-tree, 3 truncated, 0
+  skipped` on the repin PR itself, because it scans *every changed file*, not
+  only governed ones. The three are exactly the changed files over 8192 bytes:
+  `README.md` (126,193), `scripts/assert-mcp-config.mjs` (11,997), and
+  `scripts/validate-mcp.sh` (9,032). The claim was true of the CLI path and
+  false as a statement about the repository. The narrower gap that survived
+  that correction — that the *measured* remainder had still never been read,
+  since the Action reports only a count — was then closed by
+  `fixtures/markers/over-window.ts`, which observes `scannedBytes: 8133` against
+  `fileBytes: 23156`.
+- ~~**No dangling marker.**~~ Closed: `fixtures/markers/unresolvable.ts` pins
+  both the `warn` dangling case and the `info` foreign-log case.
+- **The 3,000-file marker cap is not approached** — still true; the largest
+  scan observed here is 12 candidate files.
+- **The `localeCompare` → code-unit sort fix is not independently verified
+  here** — still true. Byte-identical `queue` output was observed in a single
+  locale, which is consistent with the fix but does not test it; a cross-locale
+  run would be required, and was not performed. adrkit additionally scopes the
+  fix itself, leaving `packages/core/src/affects/**` on `localeCompare`.
+
+These are gaps in this repository's coverage, not defects in adrkit.
 
 ### The fail-closed boundary was re-probed, not carried forward
 
@@ -1655,7 +1777,7 @@ corpus fingerprint assertion (`MCP-12`, `1664c5af…4bd936`) and the
 governance-bucket assertions for `src/payments/api/handler.ts` reproduce
 unchanged, and `docs/adr` was byte-identical before and after the run.
 
-### No defects found — but one of this document's own claims was falsified
+### No defects found — but two of this document's own claims were falsified
 
 This run surfaced no adrkit defect. Everything predicted by the upstream
 changelog was observed, including the positional-insertion caveat it flags. That
@@ -1673,6 +1795,14 @@ pull request, not only governed ones. The claim was true of the CLI path and
 false as a statement about the repository. It is corrected in place above rather
 than quietly deleted, because "prefer falsification" is only meaningful if the
 falsified version is still visible.
+
+The second was inside the marker assertions added to close that gap. `NEG-1` was
+first written against a hardcoded line number and failed on the real fixture;
+then its self-test perturbation turned out not to modify its target file at all,
+which would have credited the assertion without ever exercising it. Both were
+caught mechanically rather than by review — the first by the assertion suite,
+the second by the self-test's own no-op guard — and both are recorded under
+[Marker coverage](#marker-coverage-was-the-gap-this-repin-opened-and-it-is-now-closed).
 
 ---
 
