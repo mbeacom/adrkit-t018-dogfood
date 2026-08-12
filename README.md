@@ -40,11 +40,11 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   governance Action now identifies its own PR comment by the strongest author
   evidence the token allows (adrkit ADR-0026), so a push to an open PR updates
   the existing comment instead of adding a new one. That was **observed live** on
-  the pull request carrying this repin — two pushes, `created` then `updated`,
-  one comment throughout — via the app-installation-token fallback path. All four
-  validation scripts were re-run locally and pass; the `workflow_dispatch`
-  evidence is carried forward, not reproduced. The run also found that
-  `corpusFingerprint` changes with the process working directory for a
+  the pull request carrying this repin — three pushes, one `created` and two
+  `updated`, one comment throughout — via the app-installation-token fallback
+  path. All four validation scripts were re-run locally and pass; the
+  `workflow_dispatch` evidence is carried forward, not reproduced. The run also
+  found that `corpusFingerprint` changes with the process working directory for a
   byte-identical corpus. See
   [Re-validation against `e3155eaa`](#re-validation-against-e3155eaa-adrkit-v070-2026-08-12).
 - **Corpus badges (2026-08-12)** — the two badges above are adrkit `v0.7.0`'s
@@ -1594,7 +1594,7 @@ run 31652367694 (push 2):
   adrkit: updated the governing-decisions comment.
 ```
 
-And the comment count did not move:
+And the comment count did not move, across a third push either:
 
 ```console
 $ gh api repos/mbeacom/adrkit-t018-dogfood/issues/15/comments --jq 'length'
@@ -1603,12 +1603,15 @@ $ gh api repos/mbeacom/adrkit-t018-dogfood/issues/15/comments --jq '.[].id'
 5274135775
 ```
 
-Same comment `id` after both runs. **This is the ADR-0026 behavior observed
-directly rather than inferred**, and it exercises the specific path that record
-is about: the runner's token here is *an app installation token whose login is
-not resolvable*, so the Action cannot match on author login and falls back to
-"marker leads the body, author is a bot". The Action says so in its own log, on
-both runs, before deciding.
+Three pushes, three successful `adr.yml` runs, one `created` and two `updated`,
+and the same comment `id` throughout (run
+[`31652542021`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31652542021)
+is the third, and logs `updated` on the same identification line). **This is the
+ADR-0026 behavior observed directly rather than inferred**, and it exercises the
+specific path that record is about: the runner's token here is *an app
+installation token whose login is not resolvable*, so the Action cannot match on
+author login and falls back to "marker leads the body, author is a bot". The
+Action says so in its own log, on every run, before deciding.
 
 One nuance worth recording, because it would otherwise look like a
 contradiction: the comment's `updated_at` is **unchanged** at
@@ -1634,8 +1637,8 @@ verified here:
 
 - **The ADR-0026 comment-identity fix was observed after all.** It is listed here
   in earlier drafts of this section as unverified; it was then exercised live by
-  the pull request carrying this repin — two pushes, two successful `adr.yml`
-  runs, `created` then `updated`, and one comment throughout. See
+  the pull request carrying this repin — three pushes, three successful `adr.yml`
+  runs, one `created` and two `updated`, and one comment throughout. See
   [Live evidence at this pin](#live-evidence-at-this-pin-e3155eaa). What remains
   unobserved is the *non-fallback* path: this repository's runner token is an app
   installation token whose login is not resolvable, so the author-login match was
