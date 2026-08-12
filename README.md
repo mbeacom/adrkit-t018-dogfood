@@ -38,9 +38,10 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
 - **Repin to `e3155eaa` / adrkit `v0.7.0` (2026-08-12)** — the current pin. Action
   source changed in the surface this repository watches most closely: the
   governance Action now identifies its own PR comment by the strongest author
-  evidence the token allows (adrkit ADR-0026), so a push to an open PR should
-  update the existing comment instead of adding a new one. That behavior is
-  **read from the upstream record and diff, not observed here**. All four
+  evidence the token allows (adrkit ADR-0026), so a push to an open PR updates
+  the existing comment instead of adding a new one. That was **observed live** on
+  the pull request carrying this repin — two pushes, `created` then `updated`,
+  one comment throughout — via the app-installation-token fallback path. All four
   validation scripts were re-run locally and pass; the `workflow_dispatch`
   evidence is carried forward, not reproduced. The run also found that
   `corpusFingerprint` changes with the process working directory for a
@@ -1458,11 +1459,12 @@ The repin from `c5dc677f` to `e3155eaa` is a single-release step, and unlike the
 previous one it changes Action source in the surface this repository observes
 most directly: how the governance Action identifies its own PR comment.
 
-**Scope caveat, stated up front.** Everything recorded in this section was
-observed **locally**, by running the four validation scripts against the new pin
-on this branch. The two `workflow_dispatch` workflows (`arb-queue.yml`,
-`arb-queue-fail-closed.yml`) and the live `adr.yml` comment behavior are **not**
-re-run here and are therefore **not** claimed at this pin — see
+**Scope caveat, stated up front.** Most of what follows was observed **locally**,
+by running the four validation scripts against the new pin on this branch. The
+governance Action's new comment-identity behavior was then observed **live** on
+the pull request carrying this repin. The two `workflow_dispatch` workflows
+(`arb-queue.yml`, `arb-queue-fail-closed.yml`) were **not** re-dispatched and are
+therefore **not** claimed at this pin — see
 [What was not exercised at this pin](#what-was-not-exercised-at-this-pin-e3155eaa)
 below, which is the part of this section a reader should weigh most.
 
@@ -1487,8 +1489,9 @@ The behavior adrkit ADR-0026 describes is that a token whose login is unknowable
 bot" plus the marker leading the body, so a push to an open PR **updates** the
 existing governing-decisions comment instead of adding a new one
 ([mbeacom/adrkit#107](https://github.com/mbeacom/adrkit/issues/107)). That
-description is taken from the upstream record and the diff. **It was not
-observed here** — see the scope note below.
+description is taken from the upstream record and the diff; the behavior it
+describes was subsequently **observed live** here — see
+[Live evidence at this pin](#live-evidence-at-this-pin-e3155eaa).
 
 **The MCP change is a version string and nothing else.** `packages/mcp/src` is a
 one-line diff bumping `SERVER_INFO.version`; there is no behavioral change to
@@ -1575,22 +1578,68 @@ The body reads `No governing decisions for the changed files.`, which is correct
 this change touches workflows, scripts, and `README.md`, and nothing under the
 governed `src/payments/**` subset.
 
-**Run 2 — the distinguishing observation.** The claim under test is that a second
-push to the *same open pull request* updates that comment in place rather than
-adding a second one. Recorded below when observed; until then this repository
-makes no claim about it either way.
+**Run 2 — the comment was updated, not duplicated.** A second push to the same
+open pull request produced run
+[`31652367694`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31652367694),
+conclusion `success`. The Action names the outcome itself, and the two runs
+differ in exactly the expected word:
+
+```
+run 31652254954 (push 1):
+  adrkit: an app installation token, whose login is not resolvable; matching on the marker and a bot author.
+  adrkit: created the governing-decisions comment.
+
+run 31652367694 (push 2):
+  adrkit: an app installation token, whose login is not resolvable; matching on the marker and a bot author.
+  adrkit: updated the governing-decisions comment.
+```
+
+And the comment count did not move:
+
+```console
+$ gh api repos/mbeacom/adrkit-t018-dogfood/issues/15/comments --jq 'length'
+1
+$ gh api repos/mbeacom/adrkit-t018-dogfood/issues/15/comments --jq '.[].id'
+5274135775
+```
+
+Same comment `id` after both runs. **This is the ADR-0026 behavior observed
+directly rather than inferred**, and it exercises the specific path that record
+is about: the runner's token here is *an app installation token whose login is
+not resolvable*, so the Action cannot match on author login and falls back to
+"marker leads the body, author is a bot". The Action says so in its own log, on
+both runs, before deciding.
+
+One nuance worth recording, because it would otherwise look like a
+contradiction: the comment's `updated_at` is **unchanged** at
+`2026-08-12T23:49:21Z` even though run 2 reports `updated`. The rendered body was
+byte-identical between the two pushes — neither push touched `src/payments/**`,
+so both runs rendered `No governing decisions for the changed files.` So
+`updated_at` is not a reliable signal that the Action ran; the workflow run and
+its log line are. Only the *absence of a second comment* distinguishes the fixed
+behavior from the old one here, and that is what was checked.
+
+A second observation from the same runs, not related to comments: the Action
+reported `marker scan: 17 scanned, 0 absent, 0 unreadable, 0 out-of-tree, 5
+truncated, 0 skipped`. Five truncated files is expected rather than alarming —
+this change touches large files (this README among them) that exceed the scan
+window, which is the same measured-extent behavior
+[`scripts/validate-markers.sh`](scripts/validate-markers.sh) pins with `TRUNC-1`
+through `TRUNC-5`.
 
 ### What was *not* exercised at this pin (`e3155eaa`)
 
 Stated plainly, because the headline upstream change is precisely the thing not
 verified here:
 
-- **The ADR-0026 comment-identity fix was not observed.** `.github/workflows/adr.yml`
-  tracks `packages/ci@main` and is exercised only by a real pull request, so
-  whether a second push now updates the existing comment rather than adding a new
-  one is, in this document, a claim read off the upstream ADR and diff. The
-  distinguishing observation requires two pushes to one open PR and an inspection
-  of the resulting comment count; that has not been done at the time of writing.
+- **The ADR-0026 comment-identity fix was observed after all.** It is listed here
+  in earlier drafts of this section as unverified; it was then exercised live by
+  the pull request carrying this repin — two pushes, two successful `adr.yml`
+  runs, `created` then `updated`, and one comment throughout. See
+  [Live evidence at this pin](#live-evidence-at-this-pin-e3155eaa). What remains
+  unobserved is the *non-fallback* path: this repository's runner token is an app
+  installation token whose login is not resolvable, so the author-login match was
+  never taken, only the bot-author fallback.
 - **Neither `workflow_dispatch` workflow was re-dispatched.** The managed queue
   issue (`arb-queue.yml`) and the fail-closed boundary
   (`arb-queue-fail-closed.yml`) carry the new pin in their `uses:` line, but the
