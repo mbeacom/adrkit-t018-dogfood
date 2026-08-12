@@ -1547,6 +1547,39 @@ run from a fixed cwd, so it is unaffected;
 `scripts/validate-badge-reports.sh` `cd`s to the repository root before
 regenerating for exactly this reason.
 
+### Live evidence at this pin (`e3155eaa`)
+
+`adr.yml` tracks `packages/ci@main`, which resolves to `v0.7.0` code at the time
+of writing, so the pull request carrying this repin is the first opportunity this
+repository has had to observe the ADR-0026 comment-identity change.
+
+**Run 1 — the comment was created.** Workflow run
+[`31652254954`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31652254954),
+conclusion `success`. It posted exactly one comment on
+[#15](https://github.com/mbeacom/adrkit-t018-dogfood/pull/15):
+
+```console
+$ gh api repos/mbeacom/adrkit-t018-dogfood/issues/15/comments \
+    --jq '.[] | "author=\(.user.login) type=\(.user.type) created=\(.created_at) updated=\(.updated_at)"'
+author=github-actions[bot] type=Bot created=2026-08-12T23:49:21Z updated=2026-08-12T23:49:21Z
+```
+
+Two details matter for what ADR-0026 changed, and both hold: the author is a
+**bot** (the identity signal the fix falls back to when a token's login is
+unknowable), and `<!-- adrkit:ci -->` is the **exact first line** of the body —
+the position the new reader requires, and which `comment.ts` now documents as
+load-bearing rather than cosmetic. `created_at` equals `updated_at`, so at this
+point nothing had been updated.
+
+The body reads `No governing decisions for the changed files.`, which is correct:
+this change touches workflows, scripts, and `README.md`, and nothing under the
+governed `src/payments/**` subset.
+
+**Run 2 — the distinguishing observation.** The claim under test is that a second
+push to the *same open pull request* updates that comment in place rather than
+adding a second one. Recorded below when observed; until then this repository
+makes no claim about it either way.
+
 ### What was *not* exercised at this pin (`e3155eaa`)
 
 Stated plainly, because the headline upstream change is precisely the thing not
