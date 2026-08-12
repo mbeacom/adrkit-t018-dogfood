@@ -1,5 +1,16 @@
 # adrkit-t018-dogfood
 
+[![ADRs](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmbeacom%2Fadrkit-t018-dogfood%2Fmain%2F.adrkit%2Flint.json&query=%24.checked&label=ADRs&color=cb492d)](./docs/adr)
+[![ARB queue](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmbeacom%2Fadrkit-t018-dogfood%2Fmain%2F.adrkit%2Fqueue.json&query=%24.totalItems&label=ARB%20queue&suffix=%20pending&color=cb492d)](./docs/adr)
+
+Both badges are adrkit's own recipe ([ADR-0025](https://github.com/mbeacom/adrkit/blob/e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc/docs/adr/0025-ship-badges-as-recipes-over-existing-output.md),
+[guide](https://adrkit.dev/badges/)) over JSON this repository publishes about
+**its own** corpus — not adrkit's. They read `$.checked` and `$.totalItems` from
+[`.adrkit/lint.json`](.adrkit/lint.json) and [`.adrkit/queue.json`](.adrkit/queue.json),
+which are committed and asserted current by
+[`scripts/validate-badge-reports.sh`](scripts/validate-badge-reports.sh). See
+[Corpus badges](#corpus-badges) for what they do and do not claim.
+
 Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/adrkit):
 
 - **Phase 3 (T018)** — external-repository validation of the `mbeacom/adrkit/packages/ci@main`
@@ -24,8 +35,24 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   dependencies did, so the fail-closed boundary was re-probed rather than
   inferred. See
   [Re-validation against `c3dff3a7`](#re-validation-against-c3dff3a7-adrkit-v040-2026-08-08).
-- **Repin to `c5dc677f` / adrkit `v0.6.0` (2026-08-11)** — the current pin, and
-  the first repin in a while that changes **Action source**, not just bundles:
+- **Repin to `e3155eaa` / adrkit `v0.7.0` (2026-08-12)** — the current pin. Action
+  source changed in the surface this repository watches most closely: the
+  governance Action now identifies its own PR comment by the strongest author
+  evidence the token allows (adrkit ADR-0026), so a push to an open PR should
+  update the existing comment instead of adding a new one. That behavior is
+  **read from the upstream record and diff, not observed here**. All four
+  validation scripts were re-run locally and pass; the `workflow_dispatch`
+  evidence is carried forward, not reproduced. The run also found that
+  `corpusFingerprint` changes with the process working directory for a
+  byte-identical corpus. See
+  [Re-validation against `e3155eaa`](#re-validation-against-e3155eaa-adrkit-v070-2026-08-12).
+- **Corpus badges (2026-08-12)** — the two badges above are adrkit `v0.7.0`'s
+  badge recipe (ADR-0025), pointed at JSON this repository publishes about its
+  own corpus rather than at adrkit's. The reports are committed and asserted
+  current by CI instead of being refreshed by a write-capable bot. See
+  [Corpus badges](#corpus-badges).
+- **Repin to `c5dc677f` / adrkit `v0.6.0` (2026-08-11)** — the first repin in a
+  while that changes **Action source**, not just bundles:
   `packages/ci/src/` gained inbound `@adr` marker scanning (v0.5.0) and swapped
   several `localeCompare` sorts for code-unit comparisons (v0.6.0). Both
   `check --json` and `explain --json` grew fields against this repository's own
@@ -67,21 +94,22 @@ All adrkit usage in this repository — the validation script and the
 GitHub Actions workflows — is pinned to an exact 40-character adrkit commit:
 
 ```
-c5dc677f55c492056184c01252d9f812919c80f9
+e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc
 ```
 
-This is the commit behind adrkit's **`v0.6.0`** release tag, verified by
+This is the commit behind adrkit's **`v0.7.0`** release tag, verified by
 dereferencing the annotated tag rather than trusting the release page:
 
 ```console
-$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.6.0 --jq '.object.type, .object.sha'
+$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.7.0 --jq '.object.type, .object.sha'
 tag
-4b7286f77163c809d36953ad577430a689bec660
-$ gh api repos/mbeacom/adrkit/git/tags/4b7286f77163c809d36953ad577430a689bec660 --jq '.object.sha'
-c5dc677f55c492056184c01252d9f812919c80f9
+90a4c6b1e91c0a9f05ebb748a3d0a997a28d30f2
+$ gh api repos/mbeacom/adrkit/git/tags/90a4c6b1e91c0a9f05ebb748a3d0a997a28d30f2 --jq '.object.sha'
+e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc
 ```
 
-It supersedes `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` (`v0.4.0`), which
+It supersedes `c5dc677f55c492056184c01252d9f812919c80f9` (`v0.6.0`), which
+superseded `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` (`v0.4.0`), which
 superseded `bbe63e017274f173dbb40eeaceccd17df346b32b`, which superseded
 `896391cc385798f7f08c5694f70acaf0342789e9`, which in turn superseded
 `efef89b5d747ca175a1947f1ce2f4296dab54fa3` (the `specs/007-arb-queue` merge
@@ -93,7 +121,7 @@ deliberately does not use it.** It currently points at exactly this commit:
 ```console
 $ gh api repos/mbeacom/adrkit/git/ref/tags/v0 --jq '.object.type, .object.sha'
 commit
-c5dc677f55c492056184c01252d9f812919c80f9
+e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc
 ```
 
 That makes `v0` genuinely useful for *discovering* the current SHA — it is how
@@ -281,8 +309,8 @@ previously read `checked: 3 governing, …`.
 | `fixtures/markers/**` | Six checked-in marker fixtures covering the accepted introducers, the marker-looking lines that must **not** declare (trailing, string literal, prose, fenced examples, markdown's reduced introducer set), the two unresolvable forms, and an over-window file that forces a truncated scan. |
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so since `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
-| `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; also runs both network-free unit test harnesses. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@c5dc677f55c492056184c01252d9f812919c80f9`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; asserts the committed badge reports are current via `scripts/validate-badge-reports.sh`; also runs both network-free unit test harnesses. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
@@ -305,6 +333,8 @@ previously read `checked: 3 governing, …`.
 | `.github/workflows/marker-validation.yml` | Marker validation: runs `scripts/validate-markers.sh --self-test` on PR, on `main`, weekly, and on demand. The `--self-test` pass is why it runs in CI rather than by hand — it fails the run if an assertion has become vacuous. |
 | `scripts/validate-markers.sh` | Captures `adr explain --json` per marker fixture plus one batch `adr check --json` against the pinned adrkit build, cross-checks the pin against `validate-queue.sh`, and delegates every correctness decision to `assert-markers.mjs`. `--self-test` perturbs each fixture and requires the matching assertion to fail. |
 | `scripts/assert-markers.mjs` | Pure, network-free assertions over those captures: 26 checks across marker resolution, the negative cases, the unresolvable findings, the measured truncation extent, and the batch `markerScan`. |
+| `.adrkit/lint.json`, `.adrkit/queue.json` | Verbatim `adr lint --json` and `adr queue --format json` output for this corpus, committed as the source the README badges read. Generated at the pinned commit with the same fixed `--as-of` the queue evidence uses. Not hand-edited — regenerate rather than patch. See "Corpus badges". |
+| `scripts/validate-badge-reports.sh` | Regenerates both badge reports at the pinned commit and requires them to be byte-identical to the committed files, then asserts the two fields the badge URLs dereference are integers and the lint report is finding-free (5 assertions). Cross-checks both the adrkit pin and the `--as-of` date against `validate-queue.sh`. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -332,7 +362,7 @@ regardless of when the script is actually executed.
 This script:
 
 1. Clones `mbeacom/adrkit` and checks out the pinned commit
-   `c5dc677f55c492056184c01252d9f812919c80f9` into a temporary directory
+   `e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc` into a temporary directory
    (never a branch or tag).
 2. Installs dependencies with `bun install --frozen-lockfile` using
    **Bun 1.3.14**.
@@ -421,7 +451,7 @@ version number is a *name*, and the pin discipline in
 close that gap:
 
 1. **The tarball is content-pinned.** `scripts/validate-mcp.sh` records the
-   registry's `sha512` integrity for `@adrkit/mcp@0.6.0` and verifies the
+   registry's `sha512` integrity for `@adrkit/mcp@0.7.0` and verifies the
    downloaded tarball against it before anything else happens. This is the npm
    analogue of `ADRKIT_EXT_SHA256` in the Spec Kit workflow.
 
@@ -434,8 +464,8 @@ close that gap:
    IDENTICAL
    ```
 
-   where `package/` is the extracted `@adrkit/mcp@0.6.0` tarball and `fromgit/`
-   is `git archive c5dc677f55c492056184c01252d9f812919c80f9 packages/mcp/src`.
+   where `package/` is the extracted `@adrkit/mcp@0.7.0` tarball and `fromgit/`
+   is `git archive e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc packages/mcp/src`.
 
    This is the assertion that licenses using npm for MCP at all. Without it,
    "the MCP server agents use matches the adrkit commit this repository pins"
@@ -505,7 +535,7 @@ silently becoming the code an agent runs.
 
 The order of those steps is load-bearing, and getting it wrong is easy. An
 earlier version verified a tarball fetched with `curl` and then ran `npm install
-"@adrkit/mcp@0.6.0"` — which performs *its own* registry resolution, so the bytes
+"@adrkit/mcp@0.7.0"` — which performs *its own* registry resolution, so the bytes
 checked were never the bytes installed, and a re-point between the two commands
 would have defeated the check while leaving it green. The step now runs `npm
 pack` on the pinned spec, which emits exactly what npm resolves and serves,
@@ -532,7 +562,7 @@ Because the pin now appears in that workflow as well as in
 carries the same version and integrity, uses no non-exact spec, and mentions no
 other version. The sweep looks for the version in *both* forms the file uses —
 the npm spec and the packed tarball filename — because
-the filename is `adrkit-mcp-0.6.0.tgz`, where the version is not adjacent to the
+the filename is `adrkit-mcp-0.7.0.tgz`, where the version is not adjacent to the
 package spec. A single pattern anchored on the package name missed it, and a
 negative test caught that the check was passing a case it claimed to catch;
 `SETUP-SWEEP-NONVACUOUS` now additionally asserts both forms are present, so the
@@ -553,7 +583,7 @@ the server under test is the published artifact, installed from the tarball whos
 `sha512` was verified moments earlier and executed from that installation.
 
 That last detail matters and was a correction. The harness originally launched a
-second, independent `npx -y @adrkit/mcp@0.6.0` — which re-resolves by name and
+second, independent `npx -y @adrkit/mcp@0.7.0` — which re-resolves by name and
 could execute a cached or hoisted same-version copy that no version-string
 assertion can distinguish from the verified one. It now runs the verified
 install directly, so "the artifact validated" and "the artifact executed" are the
@@ -570,7 +600,7 @@ pin — all 56 assertions pass:
 
 | Assertion group | What is asserted |
 |---|---|
-| `MCP-1`–`MCP-2` | The server identifies as `@adrkit/mcp` and reports **0.6.0**. This is a consistency check, not provenance — provenance comes from having executed the sha512-verified install. |
+| `MCP-1`–`MCP-2` | The server identifies as `@adrkit/mcp` and reports **0.7.0**. This is a consistency check, not provenance — provenance comes from having executed the sha512-verified install. |
 | `MCP-3`–`MCP-5` | Exactly the four tools, every one annotated `readOnlyHint: true` and `openWorldHint: false`. These are *declarations*, not an enforced sandbox: they are what a client relies on when deciding to invoke autonomously, so a change to them is a change to that basis. Enforcement is not asserted here. |
 | `MCP-6`–`MCP-9` | `src/payments/api/handler.ts` resolves to `governing: 0001, 0002`, `activeProposals: 0014`, `history: []` — the same status-aware buckets `adr check` and the CI Action produce for that path. |
 | `MCP-10`–`MCP-12` | `corpusHealth` reports 15 records, 0 excluded, fingerprint `1664c5af…4bd936`. The fingerprint is asserted so an accidental corpus edit fails loudly here instead of silently shifting every expectation below it. |
@@ -1006,7 +1036,7 @@ missing scope; that would make any observed failure ambiguous between
    `{number, state, title, updatedAt, bodySha256}`.
 2. **Run the Action** (`continue-on-error: true`) against
    `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
-   `mbeacom/adrkit/packages/ci/queue@c5dc677f55c492056184c01252d9f812919c80f9`
+   `mbeacom/adrkit/packages/ci/queue@e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc`
    used by `arb-queue.yml`, pointed at the invalid fixture instead of
    `docs/adr`.
 3. **Snapshot after** — the same script, run again.
@@ -1036,13 +1066,17 @@ the existing `test-assert-managed-issue-body.sh`.
 ### Expected vs. observed (most recent live dispatch)
 
 > **This table is evidence about the `c3dff3a7` pin, not the current one.** The
-> repository now pins `c5dc677f` (adrkit `v0.6.0`), and the workflow **has** been
-> re-dispatched live at that pin — run
+> repository now pins `e3155eaa` (adrkit `v0.7.0`). The workflow was last
+> re-dispatched live at `c5dc677f` (adrkit `v0.6.0`) — run
 > [`31553919618`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31553919618),
 > conclusion `success`, with the same `outcome=failure`, empty `issue-number`,
 > and byte-identical before/after snapshots (`7b725a02…`). See
-> [Live evidence at this pin](#live-evidence-at-this-pin). The table below is
-> retained as the `c3dff3a7` record.
+> [Live evidence at this pin](#live-evidence-at-this-pin). **It has not been
+> re-dispatched at `e3155eaa`**; the queue Action's `action.yml` is unchanged and
+> `packages/core`'s queue logic moved only in JSDoc across that repin, so the
+> `c5dc677f` result is carried forward rather than reproduced — see
+> [What was not exercised at this pin](#what-was-not-exercised-at-this-pin-e3155eaa).
+> The table below is retained as the `c3dff3a7` record.
 
 | Field | Expected | Observed |
 |-------|----------|----------|
@@ -1415,6 +1449,239 @@ The rewrite touched `README.md` only —
 `git diff 3bfe15a ce63d8d -- .github/workflows scripts/` is empty — so the two
 sets of runs executed identical pins and identical assertions, which is
 consistent with them producing identical evidence.
+
+---
+
+## Re-validation against `e3155eaa` (adrkit v0.7.0) (2026-08-12)
+
+The repin from `c5dc677f` to `e3155eaa` is a single-release step, and unlike the
+previous one it changes Action source in the surface this repository observes
+most directly: how the governance Action identifies its own PR comment.
+
+**Scope caveat, stated up front.** Everything recorded in this section was
+observed **locally**, by running the four validation scripts against the new pin
+on this branch. The two `workflow_dispatch` workflows (`arb-queue.yml`,
+`arb-queue-fail-closed.yml`) and the live `adr.yml` comment behavior are **not**
+re-run here and are therefore **not** claimed at this pin — see
+[What was not exercised at this pin](#what-was-not-exercised-at-this-pin-e3155eaa)
+below, which is the part of this section a reader should weigh most.
+
+### What changed across `c5dc677f` → `e3155eaa`
+
+53 files changed upstream. Of the publishable packages, the material change is
+in the CI Action, from the GitHub API comparison (**inferred from the diff**, not
+from reading the shipped bundle):
+
+| File | Δ | What it is |
+|------|---|------------|
+| `packages/ci/src/github.ts` | +203 −36 | Comment identification rewritten (adrkit ADR-0026) |
+| `packages/ci/src/index.ts` | +5 −9 | Stops inferring bot identity from token equality |
+| `packages/ci/src/comment.ts` | +8 −0 | Requires the marker to lead the rendered body |
+| `packages/ci/src/action.ts` | +1 −1 | Threads the logger into `upsertMarkedComment` |
+| `packages/ci/dist/index.js` | +71 −24 | Rebundle of the above |
+| `packages/mcp/src/server.ts` | +1 −1 | `SERVER_INFO.version` `0.6.0` → `0.7.0` |
+| `packages/core/src/queue/types.ts` | +7 −0 | JSDoc only: `QueueReport.totalItems` now carries an external-consumer obligation |
+
+The behavior adrkit ADR-0026 describes is that a token whose login is unknowable
+— the default `GITHUB_TOKEN` is one — claims its prior comment by "author is a
+bot" plus the marker leading the body, so a push to an open PR **updates** the
+existing governing-decisions comment instead of adding a new one
+([mbeacom/adrkit#107](https://github.com/mbeacom/adrkit/issues/107)). That
+description is taken from the upstream record and the diff. **It was not
+observed here** — see the scope note below.
+
+**The MCP change is a version string and nothing else.** `packages/mcp/src` is a
+one-line diff bumping `SERVER_INFO.version`; there is no behavioral change to
+the four tools across this repin. That is a diff-level claim, and it is
+corroborated by execution: `MCP-12` (corpus fingerprint) and the governance
+resolution assertions `MCP-7`/`MCP-8` return the same values at `0.7.0` as they
+did at `0.6.0`.
+
+### What was re-run, and what it reported
+
+All four validation scripts were run locally at the new pin. Every one passed:
+
+| Script | Result at `e3155eaa` |
+|--------|----------------------|
+| `scripts/validate-queue.sh` | Pass. `adr --version` reports `0.7.0`; `adr lint` reports `checked 15 records, 0 errors, 0 warnings`; all three routing tiers and the `overdue`/`due`/`within-sla` triple reproduce at `--as-of 2026-07-21`. |
+| `scripts/validate-mcp.sh` | Pass, 56 assertions. `sha512` matched, `src/` byte-identical to `packages/mcp/src` at the pin, 28 config assertions, 28 stdio JSON-RPC surface assertions, corpus unchanged after the run. |
+| `scripts/validate-markers.sh` | Pass, 26 assertions across 8 fixtures. |
+| `scripts/validate-badge-reports.sh` | Pass, 5 assertions (new in this change — see [Corpus badges](#corpus-badges)). |
+
+The `QueueReport` reproduced with the same `corpusFingerprint`
+(`1664c5af7cb42038eb6087ab980499339e28a9f1d1be7e5a9095ce52414bd936`) it had at
+`c5dc677f`, which is the expected outcome given no corpus file changed.
+
+### `corpusFingerprint` is cwd-dependent
+
+Found while building the badge-report check, and worth recording because it
+bears on how a consumer may use the field. `corpusFingerprint` is not a function
+of corpus content alone: it changes with the **process working directory**, for
+byte-identical files. Observed at this pin, same 15 records, same absolute
+`--dir`, only `cd` varying:
+
+```console
+$ cd <repo root>   && adr queue --dir <root>/docs/adr --as-of 2026-07-21 --format json | jq -r .corpusFingerprint
+1664c5af7cb42038eb6087ab980499339e28a9f1d1be7e5a9095ce52414bd936
+$ cd <repo>/scripts && adr queue --dir <root>/docs/adr --as-of 2026-07-21 --format json | jq -r .corpusFingerprint
+3e00b6543b6ebc55a085c7a5d3d1e15086358991030445752948af22437d2b79
+$ cd /tmp          && adr queue --dir <root>/docs/adr --as-of 2026-07-21 --format json | jq -r .corpusFingerprint
+66bf9f30c09e34d92da1f7a551f6ec954eb8f57e3bc1b7565dd48964e92415f8
+```
+
+The mechanism is visible in the same reports: `sourcePath` is resolved relative
+to the process cwd rather than to `--dir`, so from `/tmp` the records are
+reported at `../../Users/.../docs/adr/0014-….md`, and the fingerprint is
+computed over those paths. A byte-identical corpus copied to a different
+location fingerprints differently for the same reason.
+
+This is **not** a regression at this pin — it was not compared against
+`c5dc677f`, so it is stated as a property observed at `e3155eaa`, not as
+something this repin introduced. It is recorded rather than worked around
+because it limits what the field can be used for: it identifies *this corpus as
+laid out here*, not the corpus content, so comparing fingerprints across two
+checkouts at different paths, or across a CI job and a developer machine with
+different working directories, can report a difference where none exists. This
+repository's own `MCP-12` assertion compares fingerprints only within a single
+run from a fixed cwd, so it is unaffected;
+`scripts/validate-badge-reports.sh` `cd`s to the repository root before
+regenerating for exactly this reason.
+
+### What was *not* exercised at this pin (`e3155eaa`)
+
+Stated plainly, because the headline upstream change is precisely the thing not
+verified here:
+
+- **The ADR-0026 comment-identity fix was not observed.** `.github/workflows/adr.yml`
+  tracks `packages/ci@main` and is exercised only by a real pull request, so
+  whether a second push now updates the existing comment rather than adding a new
+  one is, in this document, a claim read off the upstream ADR and diff. The
+  distinguishing observation requires two pushes to one open PR and an inspection
+  of the resulting comment count; that has not been done at the time of writing.
+- **Neither `workflow_dispatch` workflow was re-dispatched.** The managed queue
+  issue (`arb-queue.yml`) and the fail-closed boundary
+  (`arb-queue-fail-closed.yml`) carry the new pin in their `uses:` line, but the
+  live evidence recorded elsewhere in this README was produced under
+  `c5dc677f`. The queue Action's `action.yml` is unchanged across this repin and
+  `packages/core`'s queue logic changed only in JSDoc, so carrying that evidence
+  forward is *reasonable* — but it is carried forward, not reproduced.
+- **No agent tool invocation was observed**, at this pin or any other. The MCP
+  configuration remains prepared-and-validated only; see
+  [What this does not establish](#what-this-does-not-establish).
+
+---
+
+## Corpus badges
+
+The two badges at the top of this README are adrkit's own recipe
+([ADR-0025](https://github.com/mbeacom/adrkit/blob/e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc/docs/adr/0025-ship-badges-as-recipes-over-existing-output.md),
+shipped in `v0.7.0`, documented at [adrkit.dev/badges](https://adrkit.dev/badges/)).
+adrkit ships no badge service and no `adr badge` command: each badge is
+shields.io rendering one integer out of JSON the CLI already emits and the
+adopter serves.
+
+**They describe this repository's corpus, not adrkit's.** adrkit's own README
+carries the same two badges pointed at `https://adrkit.dev/lint.json` and
+`/queue.json`. Reusing those URLs here would have rendered adrkit's numbers on
+this repository's front page — a claim about the wrong corpus, and the sort of
+thing this repository is supposed to catch rather than commit. The badges here
+read from files this repository publishes:
+
+| Badge | Source | Field | Value at this pin |
+|-------|--------|-------|-------------------|
+| `ADRs` | [`.adrkit/lint.json`](.adrkit/lint.json) | `$.checked` | `15` |
+| `ARB queue` | [`.adrkit/queue.json`](.adrkit/queue.json) | `$.totalItems` | `3` |
+
+`$.checked` counts every record whatever its status — a superseded decision is
+still a decision that was recorded. `$.totalItems` counts records whose status
+is `proposed`, so it is queue **depth**, not deadline pressure.
+
+### Why the reports are committed rather than regenerated by a bot
+
+The published recipe adds a workflow holding `contents: write` that regenerates
+both files and pushes them to the default branch whenever `docs/adr/**` changes.
+This repository deliberately does not do that, and the reason is specific to
+what this corpus is: `docs/adr/0001`–`0015` are frozen fixtures with
+deterministic expectations asserted by `scripts/assert-queue-report.ts` against a
+fixed `--as-of`. A report that needs regenerating here means someone changed the
+corpus on purpose — which already obliges them to update those assertions in the
+same change.
+
+So the trade the upstream recipe makes is inverted. Automating the refresh would
+add a token that can push to `main` in order to silently repair a state that
+should stop the build. Committing the files and asserting they are current is
+strictly stronger: `scripts/validate-badge-reports.sh` regenerates both at the
+pinned commit and requires them to be byte-identical, so a stale badge source
+**fails CI** instead of being quietly corrected after it has already rendered a
+false number.
+
+### One deliberate divergence from the published recipe
+
+The recipe regenerates with `adr queue`'s default `--as-of`, which is today.
+That would make the committed file differ from a regeneration every day and turn
+the check into noise, so this repository pins the same fixed `--as-of
+2026-07-21` that `scripts/validate-queue.sh` uses — cross-checked mechanically
+between the two scripts, since a silent divergence would make the published
+report disagree with this repository's own queue evidence.
+
+That is sound **for the field the badge reads**, and this was verified rather
+than assumed. Queue depth is selected by `status: proposed`, so it does not move
+with the calendar:
+
+```console
+$ for d in 2026-01-01 2026-07-21 2027-12-31; do adr queue --dir docs/adr --as-of $d --format json \
+    | jq -c '{totalItems, states: [.items[].slaState]}'; done
+{"totalItems":3,"states":["within-sla","within-sla","within-sla"]}
+{"totalItems":3,"states":["overdue","due","within-sla"]}
+{"totalItems":3,"states":["overdue","overdue","overdue"]}
+```
+
+`totalItems` is `3` in all three; `slaState` moves in all three. The consequence
+is stated rather than hidden: **the `slaState`, `deadlineDate`, and SLA fields
+inside the committed `.adrkit/queue.json` are true as of `2026-07-21` and are not
+a live view.** Nothing renders them — the badge dereferences `$.totalItems`
+only — but anyone reading the file directly should read them as pinned evidence,
+the same way the rest of this repository's queue evidence is pinned.
+
+### What the check asserts, and that it can fail
+
+`scripts/validate-badge-reports.sh` makes 5 assertions: both reports match a
+regeneration at the pinned commit (`CURRENT-lint`, `CURRENT-queue`), both fields
+the badge URLs dereference are integers (`BADGE-checked`, `BADGE-totalItems`),
+and the published lint report carries no findings (`BADGE-clean`). The integer
+checks exist because shields renders a missing key as `no result` and a
+malformed one as its text, which reads to a visitor as a bug in the tooling
+rather than as a broken file.
+
+Every one of the five was **observed failing** before being credited as
+coverage, by perturbing a throwaway copy — the same standard the marker
+assertions are held to:
+
+| Perturbation | Assertion(s) that failed |
+|---|---|
+| `.checked` bumped to `16` | `CURRENT-lint` |
+| `.totalItems` set to `0` | `CURRENT-queue` |
+| `.checked` set to the string `"15"` | `CURRENT-lint`, `BADGE-checked` |
+| `.checked` set to `true` | `CURRENT-lint`, `BADGE-checked` |
+| `lint.json` deleted | `CURRENT-lint`, `BADGE-checked`, `BADGE-clean` |
+| `queue.json` truncated mid-document | `CURRENT-queue`, `BADGE-totalItems` |
+| a finding injected into `lint.json` | `CURRENT-lint`, `BADGE-clean` |
+
+The boolean case is why the type test is `type == "number"` rather than a
+truthiness check, and the deleted-file case is why the readers are guarded: an
+earlier revision aborted under `set -e` on the missing file and skipped the two
+assertions after it, which would have reported fewer failures than were actually
+present.
+
+### What the badges disclose
+
+A `dynamic/json` badge asks shields.io to fetch the URL, so every render sends
+this repository's owner, name, and branch to a third party. The published
+`.adrkit/queue.json` also carries each queued record's `routingTargets`
+(`@mbeacom`, `@octocat`, `team:platform-eng`, `team:arb`). Those are already
+public in this public repository's corpus and are fixture values, so the
+disclosure is nil here — but it is the thing to check before copying this recipe
+into a repository whose `deciders` are not public handles.
 
 ---
 

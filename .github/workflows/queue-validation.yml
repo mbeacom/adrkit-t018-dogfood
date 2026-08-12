@@ -19,6 +19,16 @@ jobs:
           bun-version: "1.3.14"
       - name: Validate ARB queue against pinned adrkit commit
         run: ./scripts/validate-queue.sh
+      - name: Assert the committed badge reports are current
+        # The README badges publish `.checked` and `.totalItems` from these two
+        # files to shields.io, so a stale file is a false claim about this corpus
+        # rendered on the front page. This repository commits them and asserts
+        # they are current rather than running the upstream recipe's
+        # `contents: write` refresh job -- the corpus here is a frozen fixture
+        # set, so a report that needs regenerating means someone changed docs/adr
+        # and owes an assertions update in the same change (README, "Corpus
+        # badges"). Failing is the correct outcome; auto-correcting would hide it.
+        run: ./scripts/validate-badge-reports.sh
       - name: Unit-test the managed-issue assertion parser (fixtures only, no network)
         run: ./scripts/test-assert-managed-issue-body.sh
       - name: Unit-test the no-issue-mutation comparison (fixtures only, no network)

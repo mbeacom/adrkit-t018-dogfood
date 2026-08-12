@@ -24,27 +24,29 @@
 set -euo pipefail
 
 # Pin: exact adrkit commit dogfooded by this repository. This is the commit
-# behind adrkit's `v0.6.0` release tag. It supersedes
+# behind adrkit's `v0.7.0` release tag. It supersedes
+# c5dc677f55c492056184c01252d9f812919c80f9 (`v0.6.0`), which superseded
 # c3dff3a7a9c3df44233809423eb59a3505fcf6f5 (`v0.4.0`), which superseded
 # bbe63e017274f173dbb40eeaceccd17df346b32b, which in turn superseded
 # 896391cc385798f7f08c5694f70acaf0342789e9.
 #
-# Unlike the previous repin, Action *source* did change here: `packages/ci/src/`
-# gained inbound `@adr` marker scanning (action.ts, changed-files.ts, comment.ts,
-# index.ts) across v0.5.0, and several `localeCompare` sorts became code-unit
-# comparisons across v0.6.0. `packages/ci/queue/action.yml` is unchanged, but the
-# committed bundles (dist/index.js, dist/queue-action.js) moved with the source
-# rather than only with their dependencies. Because this is a source change and
-# not only a rebundle, the queue Action's behavior against this corpus and its
+# Action *source* changed here, and in the surface this repository observes most
+# directly: `packages/ci/src/github.ts` (+203/-36), `comment.ts`, `action.ts`,
+# and `index.ts` reidentify the governing-decisions comment by the strongest
+# author evidence the token allows (adrkit ADR-0026 / mbeacom/adrkit#107), so a
+# push to an open PR now *updates* the existing comment instead of adding a new
+# one. `packages/ci/queue/action.yml` is unchanged and the queue kernel's
+# selection logic is untouched, but because this is a source change and not only
+# a rebundle, the queue Action's behavior against this corpus and its
 # corpus-load fail-closed boundary were both re-run at this pin rather than
-# carried forward — see README.md ("Re-validation against `c5dc677f`").
+# carried forward — see README.md ("Re-validation against `e3155eaa`").
 #
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
 # commit"). adrkit also publishes a moving `v0` major tag that currently points
 # at this same commit; it is useful for DISCOVERING the current SHA, but
 # adopting it as the pin would destroy the immutability this repository exists
 # to demonstrate.
-ADRKIT_REF="c5dc677f55c492056184c01252d9f812919c80f9"
+ADRKIT_REF="e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 

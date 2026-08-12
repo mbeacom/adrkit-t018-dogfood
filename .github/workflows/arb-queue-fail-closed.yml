@@ -34,7 +34,7 @@ jobs:
       - name: Run the pinned queue Action against a deliberately invalid corpus dir (expected to fail before any issue write)
         id: queue
         continue-on-error: true
-        uses: mbeacom/adrkit/packages/ci/queue@c5dc677f55c492056184c01252d9f812919c80f9
+        uses: mbeacom/adrkit/packages/ci/queue@e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc
         with:
           dir: fixtures/fail-closed-invalid-corpus-dir
 
