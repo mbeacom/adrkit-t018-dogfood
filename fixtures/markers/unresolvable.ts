@@ -23,7 +23,12 @@
 // governing-decisions Action fails only on `error` findings attached to changed
 // ADR records, which these are not.
 //
-// Expected: zero declarations, one `dangling-marker` (warn), one
-// `marker-unresolvable` (info). Asserted as `FIND-1` through `FIND-4`.
+// Expected: BOTH refs appear in `markers.declared` — they are well-formed and
+// were scanned — while producing zero governance edges. That distinction is the
+// point: `declared` records what the scanner accepted, `governedBy` records
+// what resolved, and conflating the two would hide the difference between "the
+// scanner never saw it" and "the scanner saw it and could not bind it". Plus one
+// `dangling-marker` (warn) and one `marker-unresolvable` (info). Asserted as
+// `FIND-1` through `FIND-4`.
 
 export const unresolved = true;

@@ -6,8 +6,13 @@
 // dedicated-line rule has regressed and `NEG-1` in scripts/validate-markers.sh
 // fails.
 //
-// This file deliberately contains NO valid marker, so its expected declaration
-// set is exactly empty.
+// This is a MIXED boundary fixture, not a purely negative one. It contains four
+// marker-looking lines that must not declare AND one block-comment continuation
+// that must — see the bottom of the file. Its expected declaration set is
+// therefore exactly `0001`, declared once, from the block comment alone
+// (`POS-6` and `NEG-1`). Every decoy names `0001` too, which is what makes the
+// pairing meaningful: the assertion pins WHICH line declared, not just that
+// something did.
 
 // The reference is real (0001 is an accepted record in this corpus), so if any
 // of these resolved, the failure would be visible rather than silently inert.

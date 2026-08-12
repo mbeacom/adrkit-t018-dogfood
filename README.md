@@ -37,8 +37,9 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   same change. Two source files now declare inbound `@adr` markers and six
   fixtures pin the rules around them, asserted by
   [`scripts/validate-markers.sh`](scripts/validate-markers.sh) (26 assertions)
-  and re-run in CI. Every assertion was **observed failing** under a
-  perturbation before being credited as coverage. See
+  and re-run in CI. 22 of the 26 were **observed failing** under a perturbation
+  before being credited as coverage; the other four are named with the reason a
+  fixture edit cannot violate them. See
   [Marker coverage](#marker-coverage-was-the-gap-this-repin-opened-and-it-is-now-closed).
 - **MCP server for coding agents (2026-08-09)** — a pinned, integrity-verified
   `@adrkit/mcp` configuration is checked in for Copilot cloud agent, Copilot code
@@ -1563,7 +1564,7 @@ that matter for the marker work are:
 
 | Run | Workflow | Trigger | Conclusion |
 |---|---|---|---|
-| [`31555185437`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185437) | `marker-validation.yml` | `pull_request` | `success` — 26 assertions, then 13 self-test perturbations each observed failing |
+| [`31555185437`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185437) | `marker-validation.yml` | `pull_request` | `success` — 26 assertions, then the self-test pass. That run predates the review fixes below, so its self-test covered 13 perturbations rather than the current 17. |
 | [`31555185462`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185462) | `adr.yml` | `pull_request` | `success` — rendered the `declared by` edges quoted below |
 
 Both dispatched runs resolved the Action at the new pin, confirmed by their own
@@ -1639,8 +1640,10 @@ It is retained as the record of that gap; each item now names what closed it.
   window. `fileBytes` is cross-checked against `wc -c` rather than trusted from
   the tool that reported it.
 - **Still not exercised: the 3,000-file marker cap.** The largest scan observed
-  here is 12 candidate files, against a cap of 3,000. Nothing in this repository
-  approaches it, and `skippedPaths` has never been non-empty.
+  scan observed here is **23** candidate files (workflow run
+  [`31555185462`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185462)),
+  against a cap of 3,000. Nothing in this repository approaches it, and
+  `skippedPaths` has never been non-empty.
 - **Still not exercised: `absent`, `unreadable`, and `out-of-tree` scan states.**
   All three are asserted to be zero (`SCAN-4`), which pins that they do not fire
   spuriously — but a passing zero is not coverage of the state itself.
@@ -1660,9 +1663,9 @@ pull requests, on `main`, weekly, and on demand.
 
 | Group | What is pinned |
 |---|---|
-| `POS-1`–`POS-9` | The merge case; marker-only governance with an empty `firedMatchers`; a pattern-only control on the same file that must carry **no** `declaredBy` key; status bucketing surviving an inbound declaration; the comma list; and the four accepted introducers that must work (`//`, block-comment `*`, markdown `<!--`, MDX `{/*`). |
+| `POS-1`–`POS-9` | The merge case; marker-only governance with an empty `firedMatchers`; a pattern-only control on the same file whose `declaredBy` key must be **absent**, asserted via `Object.hasOwn` rather than by counting (a count cannot tell a missing key from an empty array, which is the whole byte-compatibility claim); status bucketing surviving an inbound declaration; the comma list; and the four accepted introducers that must work (`//`, block-comment `*`, markdown `<!--`, MDX `{/*`). |
 | `NEG-1`–`NEG-4` | The marker-looking lines that must **not** declare: trailing, inside a string literal, mid-prose, `@adrkit/core` (no separator), six fenced examples across backtick/tilde/longer-fence/info-string forms, and the five source-language introducers that are not markdown's. |
-| `FIND-1`–`FIND-4` | Dangling at `warn`, foreign-log at `info`, neither producing a governance edge, and `adr check` still exiting `0` — markers never influence exit status. |
+| `FIND-1`–`FIND-4` | Dangling at `warn`, foreign-log at `info`, both still present in `markers.declared` (scanned, but unbound), neither producing a governance edge, and `adr check` **reporting the dangling finding while still exiting `0` with `ok: true`** — markers never influence exit status. |
 | `TRUNC-1`–`TRUNC-5` | `truncated`, `scannedBytes < fileBytes`, `scannedBytes < windowBytes`, `fileBytes` against `wc -c`, and the header declaration surviving truncation. |
 | `SCAN-1`–`SCAN-4` | The batch `markerScan` the CI Action consumes: candidate count, truncated count, the named truncated path, and the four states that must stay zero. |
 
@@ -1678,33 +1681,50 @@ Two deliberate choices in how these are written:
   depends on where the fixture's line breaks land, and pinning the literal would
   make an unrelated edit to the padding look like an adrkit regression.
 
-**Every assertion was observed failing.** `./scripts/validate-markers.sh
---self-test` perturbs one fixture at a time in a throwaway copy and requires the
-matching assertion to fail — failing the run if the suite still passes (the
-assertion is vacuous) or if it fails without naming the expected id (a different
-assertion is doing the work). 13 perturbations, all observed:
+**22 of the 26 assertions were observed failing; the other four are named, with
+reasons.** The first draft of this section claimed "every assertion was observed
+failing" while shipping only 13 perturbations — an overclaim of exactly the kind
+this document is supposed to catch, and it was caught in review rather than by
+the harness. The claim is now computed by the harness itself rather than written
+by hand:
 
 ```
-==> Self-test: proving each assertion fails when its property is violated
-ok   POS-1  observed failing when violated (docs/adr/0014-async-review-payments-settlement-cache-invalidation.md)
-ok   POS-2  observed failing when violated (src/platform/ledger-client.ts)
-ok   POS-3  observed failing when violated (src/platform/ledger-client.ts)
-ok   POS-5  observed failing when violated (src/platform/ledger-client.ts)
-ok   POS-6  observed failing when violated (fixtures/markers/not-a-marker.ts)
-ok   POS-7  observed failing when violated (fixtures/markers/fenced-examples.ts)
-ok   POS-8  observed failing when violated (fixtures/markers/markdown-introducers.md)
-ok   POS-9  observed failing when violated (fixtures/markers/mdx-introducer.mdx)
-ok   NEG-1  observed failing when violated (fixtures/markers/not-a-marker.ts)
-ok   NEG-2  observed failing when violated (fixtures/markers/fenced-examples.ts)
-ok   NEG-3  observed failing when violated (fixtures/markers/markdown-introducers.md)
-ok   FIND-1  observed failing when violated (fixtures/markers/unresolvable.ts)
-ok   TRUNC-1  observed failing when violated (fixtures/markers/over-window.ts)
-
-Marker self-test OK: 13 assertions each observed failing when violated.
+Marker self-test OK: 17 perturbations falsified 22 of 26 assertions.
+not falsified by construction (see the PERTURBATIONS header): TRUNC-3, TRUNC-4, SCAN-1, SCAN-4
 ```
 
-The self-test earned its keep twice during authoring, and both are recorded
-because they are the argument for having it:
+`./scripts/validate-markers.sh --self-test` perturbs one fixture at a time in a
+throwaway copy and requires every assertion it names to fail — failing the run if
+the suite still passes (the assertions are vacuous), if any named id is missing
+from the failure list (a different assertion is doing the work), or if the
+perturbation did not modify its target at all. Some rows name several ids
+because the properties are genuinely coupled: shrinking the over-window fixture
+necessarily moves the truncation flag, the byte comparison, and the batch
+truncated count together, and inventing three contrived fixtures to separate
+them would be theatre.
+
+The four that are **not** falsified, and why — each established by attempting it,
+not by assuming:
+
+| Assertion | Why a fixture edit cannot violate it |
+|---|---|
+| `TRUNC-3` | `scannedBytes < windowBytes` survives every edit to this fixture: shrinking it leaves `scannedBytes` equal to the whole file, still under 8192. Falsifying it needs a file whose byte 8192 is *exactly* a line terminator — a different, byte-tuned fixture rather than an edit to this one. |
+| `TRUNC-4` | `fileBytes` against `wc -c` is a cross-check between two observations of the same file; any edit moves both consistently. Violating it would require adrkit to misreport the size, which is the thing being checked. |
+| `SCAN-1` | The candidate count is set by the fixture list in the script, not by fixture content. |
+| `SCAN-4` | Asserting a set of zeros would need a file deleted or made unreadable, which is a different perturbation kind. Retained to catch spurious firing, not credited as proven. |
+
+One attempt is recorded because it failed instructively. `FIND-4` was first
+falsified by corrupting a record so `adr check` would exit non-zero — and it did
+not: `check`'s exit status depends on error findings against **changed records**,
+and the paths passed to it are source files, so a broken corpus left `check` at
+exit 0 while `explain` exited 1. `FIND-4` was rewritten to assert the stronger
+and falsifiable property that the dangling finding is *reported* and the run
+still exits 0 with `ok: true` — because the bare "exit 0" form would have been
+satisfied by a run in which the dangling marker was never detected at all, which
+is the opposite of the claim.
+
+The self-test earned its keep three times, and all three are recorded because
+they are the argument for having it:
 
 1. `NEG-1` was first written against a hardcoded **line number** (`43`). It
    failed immediately on the real fixture — the declaration is on line 39 — and
@@ -1714,6 +1734,12 @@ because they are the argument for having it:
    the assertion would have been credited without ever being exercised. The
    self-test's own guard (`perturbation did not modify <file>`) caught it. A
    self-test that cannot detect its own no-op is not a self-test.
+3. `POS-3` claimed to pin that a pattern-only decision carries **no**
+   `declaredBy` key, but the helper it used normalized a missing key and an
+   empty array to the same `0`. It would have stayed green if the
+   byte-compatible shape were widened to `declaredBy: []` — the exact regression
+   it existed to catch. Now reported as the literal `absent` via `Object.hasOwn`.
+   Caught in review, not by the harness.
 
 **Scope limit worth stating plainly:** these assertions pin adrkit's behavior
 as observed at `c5dc677f`. They are not a specification of what markers *should*
@@ -1806,7 +1832,7 @@ the remaining gaps are named there rather than repeated here.
 - ~~**No dangling marker.**~~ Closed: `fixtures/markers/unresolvable.ts` pins
   both the `warn` dangling case and the `info` foreign-log case.
 - **The 3,000-file marker cap is not approached** — still true; the largest
-  scan observed here is 12 candidate files.
+  scan observed here is 23 candidate files.
 - **The `localeCompare` → code-unit sort fix is not independently verified
   here** — still true. Byte-identical `queue` output was observed in a single
   locale, which is consistent with the fix but does not test it; a cross-locale

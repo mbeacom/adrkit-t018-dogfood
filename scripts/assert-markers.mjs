@@ -61,7 +61,18 @@ function declaredLineText(slug, doc) {
   return declaredLines(doc).map((line) => (lines[line - 1] ?? '').trim());
 }
 
-/** One decision from the union bucket, reduced to what these assertions care about. */
+/**
+ * One decision from the union bucket, reduced to what these assertions care about.
+ *
+ * `declaredBy` is reported as the literal string `absent` when the KEY is
+ * missing, rather than being normalized to `0`. The difference is the whole
+ * point of `POS-3`: adrkit documents that a decision reached only by a pattern
+ * comes back with no `declaredBy` key at all, which is what keeps `check --json`
+ * byte-identical for consumers written before markers existed. Collapsing a
+ * missing key and an empty array into the same number would leave that property
+ * unasserted, and the assertion would stay green if the pattern-only shape were
+ * widened to `declaredBy: []`.
+ */
 function decision(doc, recordId) {
   const found = (doc.governedBy ?? []).find((entry) => entry.recordId === recordId);
   if (!found) return undefined;
@@ -69,13 +80,16 @@ function decision(doc, recordId) {
     bucket: found.bucket,
     status: found.status,
     firedMatcherCount: (found.firedMatchers ?? []).length,
-    declaredByCount: (found.declaredBy ?? []).length,
+    declaredBy: Object.hasOwn(found, 'declaredBy') ? (found.declaredBy ?? []).length : 'absent',
   };
 }
 
 function findingRules(doc) {
   return (doc.findings ?? []).map((finding) => `${finding.rule}:${finding.severity}`).sort();
 }
+
+/** The one batch `adr check --json` document, shared by the FIND and SCAN groups. */
+const batch = JSON.parse(readFileSync(join(captureDir, 'check.json'), 'utf8'));
 
 // ---------------------------------------------------------------------------
 // POS — markers that must resolve, and the two edge directions composing.
@@ -90,7 +104,7 @@ assert('POS-1', 'handler.ts: 0014 carries BOTH a fired matcher and a declaration
   bucket: 'activeProposals',
   status: 'proposed',
   firedMatcherCount: 1,
-  declaredByCount: 1,
+  declaredBy: 1,
 }, decision(handler, '0014'));
 
 const ledger = load('ledger-client');
@@ -103,17 +117,17 @@ assert('POS-2', 'ledger-client.ts: 0005 governs by declaration alone (no fired m
   bucket: 'governing',
   status: 'accepted',
   firedMatcherCount: 0,
-  declaredByCount: 1,
+  declaredBy: 1,
 }, decision(ledger, '0005'));
 
 // The control for POS-2: a pattern-only decision on the same file must come
 // back with no `declaredBy` key at all, which is what keeps `check --json`
 // byte-identical for consumers written before markers existed.
-assert('POS-3', 'ledger-client.ts: 0012 reaches the file by pattern only', {
+assert('POS-3', 'ledger-client.ts: 0012 has NO declaredBy key at all (pattern-only shape is unchanged)', {
   bucket: 'governing',
   status: 'accepted',
   firedMatcherCount: 1,
-  declaredByCount: 0,
+  declaredBy: 'absent',
 }, decision(ledger, '0012'));
 
 // Status bucketing is not bypassed by declaring a record inbound. This is the
@@ -123,7 +137,7 @@ assert('POS-4', 'ledger-client.ts: declared-but-proposed 0015 stays a non-bindin
   bucket: 'activeProposals',
   status: 'proposed',
   firedMatcherCount: 0,
-  declaredByCount: 1,
+  declaredBy: 1,
 }, decision(ledger, '0015'));
 
 // A comma continues the list; a bare space would have ended it.
@@ -197,7 +211,21 @@ assert('FIND-2', 'unresolvable.ts: both refs were scanned before failing to reso
 assert('FIND-3', 'unresolvable.ts: neither marker produces a governance edge', [], unresolvable.governedBy ?? []);
 
 // Markers never influence exit status.
-assert('FIND-4', 'adr check exits 0 despite a dangling marker', '0', readFileSync(join(captureDir, 'check-exit.txt'), 'utf8').trim());
+//
+// Stated as "exit 0 AND ok:true WHILE a dangling finding is present", not just
+// "exit 0". The bare form would be satisfied by a run in which the dangling
+// marker was never detected at all, which is the opposite of the property —
+// the claim is that adrkit SAW the unresolvable marker and still did not fail.
+assert(
+  'FIND-4',
+  'adr check reports the dangling marker and still exits 0 with ok:true',
+  { exit: '0', ok: true, danglingReported: true },
+  {
+    exit: readFileSync(join(captureDir, 'check-exit.txt'), 'utf8').trim(),
+    ok: batch.ok,
+    danglingReported: (batch.findings ?? []).some((finding) => finding.rule === 'dangling-marker'),
+  },
+);
 
 // ---------------------------------------------------------------------------
 // TRUNC — the measured scan extent, which is what v0.6.0 added.
@@ -225,15 +253,14 @@ assert('TRUNC-5', 'over-window.ts: the header marker still resolves despite trun
   bucket: 'governing',
   status: 'accepted',
   firedMatcherCount: 0,
-  declaredByCount: 1,
+  declaredBy: 1,
 }, decision(overWindow, '0011'));
 
 // ---------------------------------------------------------------------------
 // SCAN — the batch surface the CI Action consumes.
 // ---------------------------------------------------------------------------
 
-const check = JSON.parse(readFileSync(join(captureDir, 'check.json'), 'utf8'));
-const scan = check.markerScan ?? {};
+const scan = batch.markerScan ?? {};
 
 assert('SCAN-1', 'check --json reports a marker scan over every fixture passed', 7, scan.totalCandidates);
 

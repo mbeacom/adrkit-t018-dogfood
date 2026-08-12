@@ -9,7 +9,9 @@
 // the last COMPLETE line inside the window, so the extent is not
 // `min(fileBytes, 8192)` and the remainder is not `fileBytes - 8192`.
 //
-// Three properties are asserted against this file (`TRUNC-1` through `TRUNC-4`):
+// Four properties are asserted against this file, as `TRUNC-1` through
+// `TRUNC-5` — the first is split across two assertions, because the truncation
+// flag and the byte comparison behind it are worth failing independently:
 //
 //   * `truncated` is true, and `scannedBytes < fileBytes`.
 //   * `scannedBytes` is strictly less than the 8192 window constant, because
