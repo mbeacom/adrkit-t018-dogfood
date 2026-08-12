@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Asserts that a QueueReport v1 JSON document (see
- * https://github.com/mbeacom/adrkit/blob/c3dff3a7a9c3df44233809423eb59a3505fcf6f5/specs/007-arb-queue/contracts/queue-report.md)
+ * https://github.com/mbeacom/adrkit/blob/c5dc677f55c492056184c01252d9f812919c80f9/specs/007-arb-queue/contracts/queue-report.md)
  * produced by `adr queue --format json` matches the deterministic dogfood
  * expectations for this repository's docs/adr corpus:
  *
