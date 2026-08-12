@@ -1806,6 +1806,17 @@ exclusion carries no explanatory comment, so whether it is a considered
 trade-off or belt-and-braces alongside the `changedRecords` filter is not
 something this repository can tell from the outside.
 
+**Raised upstream as [mbeacom/adrkit#126](https://github.com/mbeacom/adrkit/issues/126)**,
+as a question about intent rather than a defect claim, with a minimal runnable
+reproduction. It is deliberately filed separately from the existing
+[#112](https://github.com/mbeacom/adrkit/issues/112) ("surface marker scan
+health in the rendered PR comment"), because the two are different gaps and
+#112's proposed fix would not cover this one: its trigger is
+`counts.absent + counts.unreadable + counts['out-of-tree'] + counts.skipped > 0`,
+and every one of those counters is `0` here. The scan was completely healthy —
+it opened the file, read the marker, and parsed it as well-formed. #112 is
+"could not look"; this is "looked, saw it, could not bind it".
+
 ### What this repository did *not* exercise when the repin landed
 
 Retained as the record of the gap the repin opened, because the correction
