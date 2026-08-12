@@ -1673,6 +1673,53 @@ earlier revision aborted under `set -e` on the missing file and skipped the two
 assertions after it, which would have reported fewer failures than were actually
 present.
 
+### The render was verified end to end, on a branch
+
+The badge mechanism is not assumed to work. Both badges were rendered against
+this repository's real published files before this section was written — from
+the **branch** the change landed on, since that is the only URL that could exist
+at the time:
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' \
+    https://raw.githubusercontent.com/mbeacom/adrkit-t018-dogfood/<branch>/.adrkit/lint.json
+200
+$ curl -sL 'https://img.shields.io/badge/dynamic/json?url=<branch lint.json>&query=%24.checked&label=ADRs' \
+    | grep -o '<title>[^<]*</title>'
+<title>ADRs: 15</title>
+$ curl -sL 'https://img.shields.io/badge/dynamic/json?url=<branch queue.json>&query=%24.totalItems&label=ARB%20queue&suffix=%20pending' \
+    | grep -o '<title>[^<]*</title>'
+<title>ARB queue: 3 pending</title>
+```
+
+Both failure renders the upstream guide describes were also reproduced, so a
+broken badge here can be diagnosed from what it says:
+
+| Condition | Renders |
+|---|---|
+| correct URL, correct query | `ADRs: 15` |
+| correct URL, wrong JSONPath | `ADRs: no result` |
+| wrong URL | `ADRs: resource not found` |
+
+**What is not yet verified, stated plainly:** the URLs committed above point at
+`main`, not at that branch, and `.adrkit/*.json` does not exist on `main` until
+this change merges. Queried before the merge, the committed URL returns exactly
+what a typo would:
+
+```console
+$ curl -sL '…%2Fmain%2F.adrkit%2Flint.json&query=%24.checked&label=ADRs' | grep -o '<title>[^<]*</title>'
+<title>ADRs: resource not found</title>
+```
+
+So the mechanism, the files, the JSONPaths, and both failure modes are observed;
+the only unobserved step is that `main` will serve the same bytes the branch
+did. adrkit's own ADR-0025 hit this ordering problem too and held its README
+badges back to a follow-up commit for it. They are included here instead,
+because a `resource not found` tile that resolves itself on merge is a smaller
+cost than a README that describes badges it does not carry — but if the badges
+at the top of this file are showing `resource not found`, that is this paragraph,
+not a bug.
+
 ### What the badges disclose
 
 A `dynamic/json` badge asks shields.io to fetch the URL, so every render sends
