@@ -287,7 +287,7 @@ if (setupSteps !== undefined) {
   );
 
   // Any @adrkit/mcp spec that is not the exact pinned one -- including dist-tags
-  // like @latest and ranges like ^0.4.0, which a semver-only sweep would miss
+  // like @latest and ranges like ^0.6.0, which a semver-only sweep would miss
   // entirely because they contain no version number to compare.
   const badSpecs = [
     ...new Set(
@@ -305,7 +305,7 @@ if (setupSteps !== undefined) {
 
   // Catches the repin mistake of updating one literal and not the other. Two
   // forms carry a version here and both must be swept: the npm spec, and the
-  // packed tarball filename `adrkit-mcp-0.4.0.tgz` -- the version there is not
+  // packed tarball filename `adrkit-mcp-0.6.0.tgz` -- the version there is not
   // adjacent to the package spec, so a single pattern anchored on it misses
   // that occurrence.
   const mentioned = [

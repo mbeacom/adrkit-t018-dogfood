@@ -24,27 +24,27 @@
 set -euo pipefail
 
 # Pin: exact adrkit commit dogfooded by this repository. This is the commit
-# behind adrkit's `v0.4.0` release tag. It supersedes
+# behind adrkit's `v0.6.0` release tag. It supersedes
+# c3dff3a7a9c3df44233809423eb59a3505fcf6f5 (`v0.4.0`), which superseded
 # bbe63e017274f173dbb40eeaceccd17df346b32b, which in turn superseded
 # 896391cc385798f7f08c5694f70acaf0342789e9.
 #
-# No Action source changed across this repin: `packages/ci/src/` and
-# `packages/ci/queue/action.yml` are byte-identical to the previous pin. The
-# only changed files under packages/ci/ are the two committed bundles
-# (dist/index.js, dist/queue-action.js), `package.json`, and a new
-# test/bundle-scope.test.ts. The bundles moved because bundled dependencies
-# moved beneath them — notably the @actions/core ^1 -> ^3 and @actions/github
-# ^6 -> ^9 major bumps in packages/ci/package.json. That is a weaker claim
-# than a source change, so the corpus-load fail-closed boundary was re-probed
-# directly against the regenerated bundle rather than inferred — see README.md
-# ("Fail-closed evidence").
+# Unlike the previous repin, Action *source* did change here: `packages/ci/src/`
+# gained inbound `@adr` marker scanning (action.ts, changed-files.ts, comment.ts,
+# index.ts) across v0.5.0, and several `localeCompare` sorts became code-unit
+# comparisons across v0.6.0. `packages/ci/queue/action.yml` is unchanged, but the
+# committed bundles (dist/index.js, dist/queue-action.js) moved with the source
+# rather than only with their dependencies. Because this is a source change and
+# not only a rebundle, the queue Action's behavior against this corpus and its
+# corpus-load fail-closed boundary were both re-run at this pin rather than
+# carried forward — see README.md ("Re-validation against `c5dc677f`").
 #
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
 # commit"). adrkit also publishes a moving `v0` major tag that currently points
 # at this same commit; it is useful for DISCOVERING the current SHA, but
 # adopting it as the pin would destroy the immutability this repository exists
 # to demonstrate.
-ADRKIT_REF="c3dff3a7a9c3df44233809423eb59a3505fcf6f5"
+ADRKIT_REF="c5dc677f55c492056184c01252d9f812919c80f9"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 

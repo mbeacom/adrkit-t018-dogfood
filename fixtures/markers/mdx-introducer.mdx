@@ -1,0 +1,14 @@
+{/* @adr 0004 */}
+
+# MDX introducer fixture
+
+MDX rejects `<!-- -->` outright, so without the JSX expression comment that
+dialect would have no way to declare a decision at all. adrkit accepts `{/*` for
+exactly that reason, and this file pins it.
+
+The expression comment above declares `0004`. The heading below does not declare
+`0001`, because `.mdx` uses markdown's introducer set and `#` is a heading:
+
+# @adr 0001
+
+Expected declaration set for this file: exactly `0004`. Asserted as `POS-9`.
