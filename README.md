@@ -1557,6 +1557,15 @@ repin rather than a follow-up to it.
 | [`31553878229`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31553878229) | `spec-kit-extension.yml` | `pull_request` | `success` |
 | [`31553878201`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31553878201) | `copilot-setup-steps.yml` | `pull_request` | `success` |
 
+The marker fixtures landed in a later commit on the same branch (`618237c`),
+which added an eighth workflow and re-ran the rest. All green, and the two runs
+that matter for the marker work are:
+
+| Run | Workflow | Trigger | Conclusion |
+|---|---|---|---|
+| [`31555185437`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185437) | `marker-validation.yml` | `pull_request` | `success` — 26 assertions, then 13 self-test perturbations each observed failing |
+| [`31555185462`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31555185462) | `adr.yml` | `pull_request` | `success` — rendered the `declared by` edges quoted below |
+
 Both dispatched runs resolved the Action at the new pin, confirmed by their own
 download log line rather than by the workflow file:
 
@@ -1710,6 +1719,66 @@ because they are the argument for having it:
 as observed at `c5dc677f`. They are not a specification of what markers *should*
 do, and a green run means "the pinned commit still behaves the way this
 repository recorded", not "the marker rules are correct".
+
+#### Live evidence: the `declared by` edge renders in the PR comment
+
+The governance Action scanned `23 scanned, 0 absent, 0 unreadable, 0
+out-of-tree, 6 truncated, 0 skipped` on the PR that added these fixtures, and
+posted a comment containing every marker case at once — which is the first time
+this repository has produced consumer-facing evidence of the marker feature
+rather than CLI output:
+
+```markdown
+### Decisions governing this change
+
+- **0001** — Govern the payments source boundary
+  - via `path`: `src/payments/**`
+  - declared by `fixtures/markers/not-a-marker.ts:39` (`@adr 0001`)
+...
+- **0005** — Govern the orders boundary
+  - declared by `src/platform/ledger-client.ts:1` (`@adr 0005`)
+- **0012** — Govern the platform boundary
+  - via `path`: `src/platform/**`
+
+#### Active proposals touching this change
+
+These are not yet ratified and do not bind this change:
+- **0014** — … _(proposed)_
+  - via `path`: `src/payments/**`
+  - declared by `src/payments/api/handler.ts:1` (`@adr 0014`)
+- **0015** — … _(proposed)_
+  - declared by `src/platform/ledger-client.ts:1` (`@adr 0015`)
+```
+
+All three shapes are visible in one render: `0001` and `0014` carry **both** a
+pattern and a declaration, `0005` / `0015` carry a declaration **only**, and
+`0012` carries a pattern only. `0014` and `0015` are declared inbound and still
+sit under "not yet ratified and do not bind this change", which is the status
+rule holding on the surface a reviewer actually reads.
+
+#### A dangling marker is silent on that surface, by design
+
+`fixtures/markers/unresolvable.ts` was in that same PR's changed-file set, and
+its `@adr 9999` produced **no visible output in the comment at all** — no
+warning, no note. That is deliberate upstream rather than a defect, and the
+mechanism was read at the pinned commit rather than guessed:
+`packages/ci/src/comment.ts` builds its findings list from
+
+```ts
+finding.field !== 'marker' && finding.path !== undefined && changed.has(finding.path)
+```
+
+so marker findings are excluded twice over — once explicitly by `field`, and
+again by the restriction to changed **records**, which a source file is not.
+
+Recorded because the consequence is worth knowing before adopting markers: a
+mistyped or renamed reference degrades silently on the surface most reviewers
+look at. It is not lost — `adr check` reports it in both human output and
+`--json`, which is what `FIND-1` asserts against — but nothing surfaces it in
+the pull request. Unlike most decisions in that file, the `field !== 'marker'`
+exclusion carries no explanatory comment, so whether it is a considered
+trade-off or belt-and-braces alongside the `changedRecords` filter is not
+something this repository can tell from the outside.
 
 ### What this repository did *not* exercise when the repin landed
 
