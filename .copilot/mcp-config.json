@@ -3,7 +3,7 @@
     "adrkit": {
       "type": "local",
       "command": "npx",
-      "args": ["-y", "@adrkit/mcp@0.6.0", "--dir", "docs/adr"],
+      "args": ["-y", "@adrkit/mcp@0.7.0", "--dir", "docs/adr"],
       "tools": [
         "search_decisions",
         "get_decision",

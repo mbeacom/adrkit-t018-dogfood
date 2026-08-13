@@ -305,8 +305,8 @@ if (setupSteps !== undefined) {
 
   // Catches the repin mistake of updating one literal and not the other. Two
   // forms carry a version here and both must be swept: the npm spec, and the
-  // packed tarball filename `adrkit-mcp-0.6.0.tgz` -- the version there is not
-  // adjacent to the package spec, so a single pattern anchored on it misses
+  // packed tarball filename `adrkit-mcp-<version>.tgz` -- the version there is
+  // not adjacent to the package spec, so a single pattern anchored on it misses
   // that occurrence.
   const mentioned = [
     ...new Set([
