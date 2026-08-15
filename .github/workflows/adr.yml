@@ -10,12 +10,10 @@ permissions:
 jobs:
   adr:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: mbeacom/adrkit/packages/ci@main
+      - uses: mbeacom/adrkit/packages/ci@b840e915477c6532ca9697eae1fa277cafa971bc
         with:
           dir: docs/adr
