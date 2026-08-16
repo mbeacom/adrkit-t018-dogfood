@@ -1559,7 +1559,15 @@ them. All five were run locally at the new pin. Every one passed:
 | `scripts/validate-mcp.sh` | Pass, 56 assertions. `sha512` matched, `src/` byte-identical to `packages/mcp/src` at the pin, 28 config assertions, 28 stdio JSON-RPC surface assertions, corpus unchanged after the run. |
 | `scripts/validate-markers.sh --self-test` | Pass, 26 assertions across 8 fixtures; 17 perturbations falsified 22 of the 26 (the remaining 4 are not falsifiable by construction). |
 | `scripts/validate-badge-reports.sh` | Pass, 5 assertions. The committed `.adrkit/lint.json` and `.adrkit/queue.json` are byte-identical to a regeneration at `d9ce9e18`. |
-| `scripts/validate-spec-kit-extension.sh` | Pass, 49 assertions, 0 failures, at `ADRKIT_CLI_VERSION=0.8.0`. **Scope: spec-kit `0.15.1` only** — the CI matrix also covers `0.14.4`, which was not run locally. |
+| `scripts/validate-spec-kit-extension.sh` | Pass, 49 assertions, 0 failures, at `ADRKIT_CLI_VERSION=0.8.0`. **Locally: spec-kit `0.15.1` only.** The `0.14.4` leg was subsequently observed passing in CI — see below. |
+
+All eight required checks also passed in CI on the pull request carrying this
+repin ([run set under
+`31919231684`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31919231684)),
+including **both** legs of the spec-kit matrix — `validate (0.14.4)` and
+`validate (0.15.1)` — plus `validate-queue`, `validate-mcp`, `validate-markers`,
+and `copilot-setup-steps`. The `0.14.4` leg is therefore observed at this pin, in
+CI, rather than only inferred from the `0.15.1` local run.
 
 The `QueueReport` reproduced with the same `corpusFingerprint`
 (`1664c5af7cb42038eb6087ab980499339e28a9f1d1be7e5a9095ce52414bd936`) it carried at
@@ -1587,8 +1595,10 @@ The honest limits of the row above:
   `adr.yml` deliberately tracks `packages/ci@main`, which is mutable, so whatever
   it renders on the pull request carrying this repin is evidence about `main` at
   that moment, not about `d9ce9e18`.
-- **The `0.14.4` leg of the spec-kit matrix was not run locally.** Only `0.15.1`
-  was. CI runs both.
+- **The `0.14.4` leg of the spec-kit matrix was not run *locally*.** Only `0.15.1`
+  was. Both legs did pass in CI on this pull request, so the gap is closed by
+  observation rather than left open — but the two runs used different
+  environments, and only the CI one covers `0.14.4`.
 - **Dependency closures are still not content-pinned.** `@adrkit/mcp`'s own
   dependencies are resolved by npm at install time; only the top-level tarball is
   sha512-verified. This is unchanged from previous pins and is stated in
