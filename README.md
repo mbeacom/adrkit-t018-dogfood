@@ -1464,6 +1464,139 @@ consistent with them producing identical evidence.
 
 ---
 
+## Re-validation against `d9ce9e18` (adrkit v0.8.0) (2026-08-15)
+
+The repin from `e3155eaa` to `d9ce9e18` is a single-release step and the
+narrowest one this repository has recorded: **nothing under `packages/ci/`
+changed at all**, and the only `src/` movement in any publishable package is two
+version-string constants.
+
+**Scope caveat, stated up front.** Everything below was observed **locally** — by
+running the validation scripts against the new pin on this branch — plus an
+upstream comparison read from the GitHub API. **There is no live-workflow
+evidence at this pin.** The two `workflow_dispatch` workflows were not
+re-dispatched, and the governance Action's PR-comment behavior is not claimed
+here. See [What was *not* exercised at this pin](#what-was-not-exercised-at-this-pin-d9ce9e18),
+which is the part of this section a reader should weigh most.
+
+### What changed across `e3155eaa` → `d9ce9e18`
+
+73 files changed upstream. The distribution matters more than the count, and it
+was read from the comparison API rather than eyeballed:
+
+```console
+$ gh api repos/mbeacom/adrkit/compare/e3155eaa...d9ce9e18 --jq '.files | length'
+73
+$ gh api repos/mbeacom/adrkit/compare/e3155eaa...d9ce9e18 --jq '.files[].filename' | grep -c '^packages/ci/'
+0
+```
+
+Of the publishable packages, the changes are:
+
+| File | Δ | What it is |
+|------|---|------------|
+| `packages/ci/**` | **none** | The queue Action, its `action.yml`, and the queue kernel are untouched |
+| `packages/adrkit/**` | +204, 6 new files | New unscoped forwarder package (see below) |
+| `packages/cli/package.json` | +3 −2 | Adds an `adrkit` bin alias beside `adr`; version bump |
+| `packages/cli/src/index.ts` | +1 −1 | `CLI_VERSION` `0.7.0` → `0.8.0` |
+| `packages/mcp/src/server.ts` | +1 −1 | `SERVER_INFO.version` `0.7.0` → `0.8.0` |
+| `packages/mcp/server.json` | +2 −2 | Version metadata |
+| `packages/{core,evaluator,mcp}/package.json` | +1 −1 each | Version bumps |
+
+**Both `src/` changes in the surfaces this repository executes are version
+strings and nothing else.** That is a diff-level claim, and it is corroborated by
+execution rather than left as an inference: `MCP-12` (corpus fingerprint) and the
+governance-resolution assertions `MCP-7`/`MCP-8` return the same values at
+`0.8.0` as at `0.7.0`, and the committed badge reports regenerate byte-identically
+at the new pin.
+
+Because `packages/ci/` did not move, the queue Action's behavior against this
+corpus and its corpus-load fail-closed boundary are **carried forward from
+`c5dc677f`, not reproduced here.**
+
+### The unscoped `adrkit` npm package is not published
+
+adrkit's v0.8.0 release notes describe
+[mbeacom/adrkit#153](https://github.com/mbeacom/adrkit/pull/153) as "own the
+`adrkit` name — bin alias in `@adrkit/cli`, plus the unscoped forwarder package",
+and `packages/adrkit/` is present in the tree at this commit. **The npm package
+is not on the registry.** Observed directly, by two independent clients:
+
+```console
+$ npm view adrkit version
+npm error code E404
+npm error 404 Not Found - GET https://registry.npmjs.org/adrkit - Not found
+
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://registry.npmjs.org/adrkit
+404
+```
+
+This repository does **not** depend on the unscoped name — every install path
+here uses `@adrkit/cli` or `@adrkit/mcp` — so nothing here broke, and this is
+recorded as a discrepancy rather than as a failure. It is recorded at all because
+the release notes and the registry disagree, which is the kind of outside-in gap
+this repository exists to surface. The other half of that claim did ship, and was
+verified rather than assumed:
+
+```console
+$ npm install @adrkit/cli@0.8.0 && ls node_modules/.bin | grep adr
+adr
+adrkit
+$ ./node_modules/.bin/adr --version
+0.8.0
+$ ./node_modules/.bin/adrkit --version
+0.8.0
+```
+
+### What was re-run, and what it reported
+
+A narrow diff is a reason to *expect* the scripts to pass, not a reason to skip
+them. All five were run locally at the new pin. Every one passed:
+
+| Script | Result at `d9ce9e18` |
+|--------|----------------------|
+| `scripts/validate-queue.sh` | Pass. `adr --version` reports `0.8.0`; `adr lint` reports `checked 15 records, 0 errors, 0 warnings`; all three routing tiers and the `overdue`/`due`/`within-sla` triple reproduce at `--as-of 2026-07-21`. |
+| `scripts/validate-mcp.sh` | Pass, 56 assertions. `sha512` matched, `src/` byte-identical to `packages/mcp/src` at the pin, 28 config assertions, 28 stdio JSON-RPC surface assertions, corpus unchanged after the run. |
+| `scripts/validate-markers.sh --self-test` | Pass, 26 assertions across 8 fixtures; 17 perturbations falsified 22 of the 26 (the remaining 4 are not falsifiable by construction). |
+| `scripts/validate-badge-reports.sh` | Pass, 5 assertions. The committed `.adrkit/lint.json` and `.adrkit/queue.json` are byte-identical to a regeneration at `d9ce9e18`. |
+| `scripts/validate-spec-kit-extension.sh` | Pass, 49 assertions, 0 failures, at `ADRKIT_CLI_VERSION=0.8.0`. **Scope: spec-kit `0.15.1` only** — the CI matrix also covers `0.14.4`, which was not run locally. |
+
+The `QueueReport` reproduced with the same `corpusFingerprint`
+(`1664c5af7cb42038eb6087ab980499339e28a9f1d1be7e5a9095ce52414bd936`) it carried at
+`e3155eaa` and `c5dc677f`. That is observed rather than assumed: the badge-report
+check regenerates the whole report at the new pin and requires byte-identity with
+the committed file, which would fail on any fingerprint change.
+
+One process note, because it is the kind of thing that quietly produces a false
+result: the first `validate-spec-kit-extension.sh` run failed a single assertion,
+`MUT-2` ("the reference repository checkout is unmodified"), because it was run
+with the repin edits still uncommitted. That is the assertion doing its job, not a
+defect — the pass recorded above is from a re-run against a clean checkout.
+
+### What was *not* exercised at this pin (`d9ce9e18`)
+
+The honest limits of the row above:
+
+- **Neither `workflow_dispatch` workflow was re-dispatched.** `arb-queue.yml`
+  (managed-issue creation) and `arb-queue-fail-closed.yml` (invalid-corpus, no
+  write) were last run live at `c5dc677f`. Their results are carried forward on
+  the strength of `packages/ci/` being byte-identical across both repins since —
+  which is a strong reason, but it is still an inference, not an observation at
+  this pin.
+- **The governance Action's PR-comment behavior is not claimed here.**
+  `adr.yml` deliberately tracks `packages/ci@main`, which is mutable, so whatever
+  it renders on the pull request carrying this repin is evidence about `main` at
+  that moment, not about `d9ce9e18`.
+- **The `0.14.4` leg of the spec-kit matrix was not run locally.** Only `0.15.1`
+  was. CI runs both.
+- **Dependency closures are still not content-pinned.** `@adrkit/mcp`'s own
+  dependencies are resolved by npm at install time; only the top-level tarball is
+  sha512-verified. This is unchanged from previous pins and is stated in
+  [What is pinned, and why npm is acceptable here](#what-is-pinned-and-why-npm-is-acceptable-here).
+- **The shipped `packages/ci` bundle was not read.** The claim that no CI code
+  changed comes from the file-level comparison API, not from diffing the built
+  `dist/` artifacts byte-for-byte.
+
 ## Re-validation against `e3155eaa` (adrkit v0.7.0) (2026-08-12)
 
 The repin from `c5dc677f` to `e3155eaa` is a single-release step, and unlike the
