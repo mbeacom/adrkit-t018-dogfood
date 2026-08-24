@@ -24,35 +24,31 @@
 set -euo pipefail
 
 # Pin: exact adrkit commit dogfooded by this repository. This is the commit
-# behind adrkit's `v0.8.0` release tag. It supersedes
+# behind adrkit's `v0.9.0` release tag. It supersedes
+# d9ce9e18fbe95525b4e3b2780bfe33352a5ab7f2 (`v0.8.0`), which superseded
 # e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc (`v0.7.0`), which superseded
 # c5dc677f55c492056184c01252d9f812919c80f9 (`v0.6.0`), which superseded
 # c3dff3a7a9c3df44233809423eb59a3505fcf6f5 (`v0.4.0`), which superseded
 # bbe63e017274f173dbb40eeaceccd17df346b32b, which in turn superseded
 # 896391cc385798f7f08c5694f70acaf0342789e9.
 #
-# Unlike the `v0.7.0` repin, Action source did NOT change here. The
-# `e3155eaa...d9ce9e18` comparison touches 73 files, of which **zero** are under
-# `packages/ci/` — the queue Action, its `action.yml`, and the queue kernel's
-# selection logic are all byte-identical to the previously validated pin. The
-# only `src/` changes anywhere in `packages/` are two version-string constants
-# (`packages/mcp/src/server.ts` SERVER_INFO 0.7.0 -> 0.8.0, and
-# `packages/cli/src/index.ts` CLI_VERSION 0.7.0 -> 0.8.0); the rest of the
-# release is a new `packages/adrkit/` forwarder package, site/docs, and
-# workspace version bumps.
+# The queue Action source, `action.yml`, and `dist/queue-action.js` did not
+# change across `d9ce9e18...e66b43dd`; the only `packages/ci/` movement is the
+# separate governing-decisions bundle. Queue-adjacent source did move:
+# `resolveAsOf` moved from the CLI into `@adrkit/core` as a published consumer
+# contract, and the CLI now imports it. The resolver's behavior and the queue
+# report contract are intended to remain unchanged.
 #
-# That makes this a low-risk repin, but it is still re-verified rather than
-# carried forward: this repository's rule is that bumping a pin re-runs the
-# affected validation, because "the diff looks safe" is an inference and a green
-# script is an observation. See README.md ("Re-validation against `d9ce9e18`")
-# for what was actually re-run and what was not.
+# That intended stability is re-verified rather than inferred. See README.md
+# ("Re-validation against `e66b43dd`") for what was actually re-run and what
+# was not.
 #
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
 # commit"). adrkit also publishes a moving `v0` major tag that currently points
 # at this same commit; it is useful for DISCOVERING the current SHA, but
 # adopting it as the pin would destroy the immutability this repository exists
 # to demonstrate.
-ADRKIT_REF="d9ce9e18fbe95525b4e3b2780bfe33352a5ab7f2"
+ADRKIT_REF="e66b43dd87d49648a7b28630fa9ecfff65225f2e"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 
