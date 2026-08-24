@@ -1505,11 +1505,12 @@ path normalization used by `adr check`, but it does not change the managed
 queue Action's source, metadata, or executable bundle.
 
 **Scope caveat, stated up front.** Six validation surfaces were run locally,
-and the managed-issue workflow was dispatched live against the branch carrying
-the repin. The fail-closed workflow was not re-dispatched, no pull-request CI
-result is claimed here yet, and the new direct `@adrkit/core` consumer export
-was not independently exercised by a separate application. This repository
-observed the CLI that consumes it, not a second SDK consumer.
+the managed-issue workflow was dispatched live against the branch carrying the
+repin, and all seven required pull-request checks passed at commit `0c2ac33`.
+The fail-closed workflow was not re-dispatched, and the new direct
+`@adrkit/core` consumer export was not independently exercised by a separate
+application. This repository observed the CLI that consumes it, not a second
+SDK consumer.
 
 ### What changed across `d9ce9e18` → `e66b43dd`
 
@@ -1550,6 +1551,21 @@ environment and exited during parameter validation before any assertion ran.
 They are not counted as validation. The passing runs above used the exact
 extension tag, URL, digest, version, and CLI version from
 `spec-kit-extension.yml`.
+
+All seven required checks then passed on pull request
+[#19](https://github.com/mbeacom/adrkit-t018-dogfood/pull/19) at commit
+`0c2ac33`: `adr` ([run
+`32785223897`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785223897)),
+`copilot-setup-steps`
+([`32785223790`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785223790)),
+both Spec Kit jobs
+([`32785224097`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785224097)),
+`validate-markers`
+([`32785223817`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785223817)),
+`validate-mcp`
+([`32785224157`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785224157)),
+and `validate-queue`
+([`32785223999`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32785223999)).
 
 ### Live managed-issue evidence
 
