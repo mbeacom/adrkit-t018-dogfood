@@ -3,7 +3,7 @@ name: "Copilot Setup Steps"
 # Prepares Copilot cloud agent's ephemeral environment so the adrkit MCP server
 # this repository configures can actually start.
 #
-# Why this exists: the MCP server is launched as `npx -y @adrkit/mcp@0.8.0`, and
+# Why this exists: the MCP server is launched as `npx -y @adrkit/mcp@0.9.0`, and
 # @adrkit/mcp declares `engines.node >= 22`. If the agent environment's default
 # Node is older, or the registry is slow or unreachable at launch, the server
 # fails to start -- and it fails *quietly*, because an agent with no adrkit tools
@@ -62,7 +62,7 @@ jobs:
         # Order matters: populate, verify, then install the verified file.
         #
         # An earlier version of this step verified a tarball fetched with `curl`
-        # and then ran `npm install "@adrkit/mcp@0.8.0"`, which performs its own
+        # and then ran `npm install "@adrkit/mcp@0.9.0"`, which performs its own
         # registry resolution -- so the bytes that were checked were never the
         # bytes that were installed, and a re-point between the two commands
         # would have defeated the check entirely. `npm pack` is used instead
@@ -70,30 +70,30 @@ jobs:
         # hashing its output verifies the artifact that actually lands in the
         # cache and in the install below.
         env:
-          EXPECTED_SHA512: "sha512-f88hgnXYfRjuMYMHgRi+7tBGyft+rOTz4AzDZKAaR+KU5cB8KpZzOMtzyGBXA2+wkZSeg95beOCrsnmLXwJLCA=="
+          EXPECTED_SHA512: "sha512-On4yulbvgfYBy567ByeCAtCSvP/zOGrPjyRpo3e/lV69/egJq/sPQfTy6LJiz1eDF5NAHMJZjJUXba5XMb0Hiw=="
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
 
           # Populates the npm cache entry that the `npx` in the MCP
           # configuration will later resolve against.
-          npm cache add "@adrkit/mcp@0.8.0"
+          npm cache add "@adrkit/mcp@0.9.0"
 
           # Materializes what npm resolves for that spec, so the integrity check
           # below applies to the served artifact rather than to a side-channel
           # download.
-          npm pack "@adrkit/mcp@0.8.0" --pack-destination "$workdir" >/dev/null
-          tarball="$workdir/adrkit-mcp-0.8.0.tgz"
+          npm pack "@adrkit/mcp@0.9.0" --pack-destination "$workdir" >/dev/null
+          tarball="$workdir/adrkit-mcp-0.9.0.tgz"
 
           observed="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
           if [[ "$observed" != "$EXPECTED_SHA512" ]]; then
-            echo "error: @adrkit/mcp@0.8.0 integrity mismatch" >&2
+            echo "error: @adrkit/mcp@0.9.0 integrity mismatch" >&2
             echo "  expected: $EXPECTED_SHA512" >&2
             echo "  observed: $observed" >&2
             echo "npm resolved bytes this repository has not verified." >&2
             exit 1
           fi
-          echo "integrity ok: @adrkit/mcp@0.8.0 (as resolved by npm)"
+          echo "integrity ok: @adrkit/mcp@0.9.0 (as resolved by npm)"
 
           # Installed from the verified local file, not by name, so the binary
           # smoke-tested below is provably the artifact just checked. npm still
@@ -107,4 +107,4 @@ jobs:
             echo "error: expected the adrkit-mcp binary at $bin" >&2
             exit 1
           fi
-          echo "cached @adrkit/mcp@0.8.0 and its dependency closure"
+          echo "cached @adrkit/mcp@0.9.0 and its dependency closure"
