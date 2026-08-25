@@ -830,7 +830,7 @@ the repin.
 > re-dispatched at the current `e66b43dd` pin — run
 > [`32784931152`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32784931152),
 > conclusion `success`, every self-verification assertion passing. See
-> [Live evidence at this pin](#live-evidence-at-this-pin). This section is
+> [Live dispatch at `e66b43dd`](#live-dispatch-at-e66b43dd-adrkit-v090). This section is
 > retained as the `c3dff3a7` record.
 
 Dispatched against the repin branch `mbeacom-repin-queue-action-v0-4-0` at
@@ -1539,7 +1539,7 @@ present.
 
 | Validation | Observed result at `e66b43dd` |
 |------------|-------------------------------|
-| `scripts/validate-queue.sh` | Pass, 12 assertions. `adr --version` reports `0.9.0`; 15 records lint with 0 errors and 0 warnings; all three tiers and the fixed `overdue`/`due`/`within-sla` states reproduce; fingerprint remains `1664c5af…4bd936`. |
+| `scripts/validate-queue.sh` | Pass, 13 assertions. `adr --version` reports `0.9.0`; 15 records lint with 0 errors and 0 warnings; all three tiers and the fixed `overdue`/`due`/`within-sla` states reproduce; fingerprint remains `1664c5af…4bd936`. |
 | `scripts/validate-mcp.sh` | Pass, 56 assertions. The registry `sha512` matched `@adrkit/mcp@0.9.0`, package `src/` was byte-identical to the pinned commit, all config and stdio JSON-RPC checks passed, and `docs/adr` ended byte-identical. |
 | `scripts/validate-markers.sh --self-test` | Pass, 26 assertions across 8 fixtures; 17 perturbations falsified 22 assertions, with the remaining 4 non-falsifiable by construction. |
 | `scripts/validate-badge-reports.sh` | Pass, 5 assertions. Both committed reports are byte-identical to regeneration at the new pin, so no `.adrkit/*.json` edit was needed. |
