@@ -31,7 +31,7 @@ set -euo pipefail
 # Kept in sync with scripts/validate-queue.sh; the cross-check below fails the
 # build if they drift. See README.md ("Pinned adrkit commit") — never a branch
 # or tag.
-ADRKIT_REF="0bd7200bbbe98969f6ce978e5e8f44af45b1f866"
+ADRKIT_REF="9a4bdf89680b1a5b358fba0f2c8c88b9f5ac7877"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
