@@ -47,7 +47,14 @@ Owner-run technical dogfood repository for [adrkit](https://github.com/mbeacom/a
   found that `corpusFingerprint` changes with the process working directory for a
   byte-identical corpus. See
   [Re-validation against `e3155eaa`](#re-validation-against-e3155eaa-adrkit-v070-2026-08-12).
-- **Repin to `e66b43dd` / adrkit `v0.9.0` (2026-08-24)** — the current pin.
+- **Repin to `0bd7200b` / adrkit `v0.10.0` (2026-08-25)** — the current pin.
+  The queue Action and queue-core source are byte-identical to `v0.9.0`; the
+  CLI queue command moved as part of the release's help, error-recovery, and
+  TTY-aware presentation work. All six local validation surfaces pass. No live
+  workflow was dispatched and no pull-request checks are claimed at this pin.
+  See
+  [Re-validation against `0bd7200b`](#re-validation-against-0bd7200b-adrkit-v0100-2026-08-25).
+- **Repin to `e66b43dd` / adrkit `v0.9.0` (2026-08-24)** — the preceding pin.
   Queue-adjacent source moved: the `--as-of` resolver is now exported from
   `@adrkit/core`, and path-separator normalization in `adr check` is
   platform-aware. The managed queue Action itself is byte-identical across the
@@ -113,21 +120,22 @@ All adrkit usage in this repository — the validation script and the
 GitHub Actions workflows — is pinned to an exact 40-character adrkit commit:
 
 ```
-e66b43dd87d49648a7b28630fa9ecfff65225f2e
+0bd7200bbbe98969f6ce978e5e8f44af45b1f866
 ```
 
-This is the commit behind adrkit's **`v0.9.0`** release tag, verified by
+This is the commit behind adrkit's **`v0.10.0`** release tag, verified by
 dereferencing the annotated tag rather than trusting the release page:
 
 ```console
-$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.9.0 --jq '.object.type, .object.sha'
+$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.10.0 --jq '.object.type, .object.sha'
 tag
-be6e5d56cc7866a2cfc4433c98721eee5df5703c
-$ gh api repos/mbeacom/adrkit/git/tags/be6e5d56cc7866a2cfc4433c98721eee5df5703c --jq '.object.sha'
-e66b43dd87d49648a7b28630fa9ecfff65225f2e
+999167eee9cbd6cd440ae8b29ed61d20e57a16f7
+$ gh api repos/mbeacom/adrkit/git/tags/999167eee9cbd6cd440ae8b29ed61d20e57a16f7 --jq '.object.sha'
+0bd7200bbbe98969f6ce978e5e8f44af45b1f866
 ```
 
-It supersedes `d9ce9e18fbe95525b4e3b2780bfe33352a5ab7f2` (`v0.8.0`), which
+It supersedes `e66b43dd87d49648a7b28630fa9ecfff65225f2e` (`v0.9.0`), which
+superseded `d9ce9e18fbe95525b4e3b2780bfe33352a5ab7f2` (`v0.8.0`), which
 superseded `e3155eaaf200c9ed7f3ea572d91f0bd4c11c35cc` (`v0.7.0`), which
 superseded `c5dc677f55c492056184c01252d9f812919c80f9` (`v0.6.0`), which
 superseded `c3dff3a7a9c3df44233809423eb59a3505fcf6f5` (`v0.4.0`), which
@@ -142,7 +150,7 @@ deliberately does not use it.** It currently points at exactly this commit:
 ```console
 $ gh api repos/mbeacom/adrkit/git/ref/tags/v0 --jq '.object.type, .object.sha'
 commit
-e66b43dd87d49648a7b28630fa9ecfff65225f2e
+0bd7200bbbe98969f6ce978e5e8f44af45b1f866
 ```
 
 That makes `v0` genuinely useful for *discovering* the current SHA — it is how
@@ -331,7 +339,7 @@ previously read `checked: 3 governing, …`.
 | `fixtures/fail-closed-invalid-corpus-dir` | Checked-in invalid-input fixture: a plain **file** (not a directory) used as the `dir` input to the queue Action in `arb-queue-fail-closed.yml`, to deterministically trigger adrkit's corpus-load `ENOTDIR` failure before any GitHub write. |
 | `.github/workflows/adr.yml` | Phase 3 T018 workflow: PR-time governance via `mbeacom/adrkit/packages/ci@main`. Deliberately unpinned (see "Pinned adrkit commit"), so since `bbe63e01` it renders the **status-aware** PR comment — only `accepted` records appear under "Decisions governing this change", with active proposals and history in their own sections. |
 | `.github/workflows/queue-validation.yml` | Phase 6 CI validation: builds the pinned adrkit commit from source and asserts the `QueueReport` v1 shape via `scripts/validate-queue.sh`; asserts the committed badge reports are current via `scripts/validate-badge-reports.sh`; also runs both network-free unit test harnesses. |
-| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@e66b43dd87d49648a7b28630fa9ecfff65225f2e`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
+| `.github/workflows/arb-queue.yml` | Phase 6 dedicated Action workflow: creates/updates the managed ARB queue issue via `mbeacom/adrkit/packages/ci/queue@0bd7200bbbe98969f6ce978e5e8f44af45b1f866`, then self-verifies the result via `scripts/verify-managed-queue-issue.sh`. |
 | `.github/workflows/arb-queue-fail-closed.yml` | Phase 6 **fail-closed** Action workflow: dispatches the same pinned queue Action against a deliberately invalid `dir` input, asserts the step failed before any write, and mechanically proves zero issue mutation via before/after snapshots. See "Fail-closed evidence" below. |
 | `scripts/validate-queue.sh` | Local/CI script: clones adrkit at the pinned commit, builds it with Bun 1.3.14, runs `adr queue`, and asserts dogfood expectations. |
 | `scripts/assert-queue-report.ts` | QueueReport v1 assertions used by `validate-queue.sh`. |
@@ -342,7 +350,7 @@ previously read `checked: 3 governing, …`.
 | `scripts/assert-no-issue-mutation.sh` | Pure, network-free comparison of two snapshots produced by `snapshot-issues.sh`; fails unless they are byte-for-byte identical after canonicalization. Used by both `arb-queue-fail-closed.yml` (real data) and `test-assert-no-issue-mutation.sh` (fixtures). |
 | `scripts/test-assert-no-issue-mutation.sh` + `scripts/fixtures/mutation-*.json` | Local/CI unit test harness for `assert-no-issue-mutation.sh`: an identical (reordered) pair that must pass, and four pairs that each violate exactly one invariant (body changed, state changed, issue added, issue removed), with no GitHub API access required. |
 | `.github/workflows/spec-kit-extension.yml` | **Spec Kit extension** rung-2 validation: installs `@adrkit/spec-kit` from its published, sha256-pinned release asset into a real Spec Kit project, at each upstream version where that install path works (`0.14.4`, `0.15.1`), and runs `scripts/validate-spec-kit-extension.sh`. Runs on PR, on `main`, weekly, and on demand. |
-| `scripts/validate-spec-kit-extension.sh` | Self-verifying, fail-closed assertions for the Spec Kit extension: install and rendering, the hook contract, packaging hygiene, behavior against this repo's real corpus, zero mutation, and four consumer-facing failure modes that must produce no side effect. 41 assertions per upstream version. |
+| `scripts/validate-spec-kit-extension.sh` | Self-verifying, fail-closed assertions for the Spec Kit extension: install and rendering, the hook contract, packaging hygiene, behavior against this repo's real corpus, zero mutation, and four consumer-facing failure modes that must produce no side effect. 49 assertions per upstream version. |
 | `.github/copilot-mcp-config.json` | **Canonical** MCP configuration for Copilot cloud agent and Copilot code review. Not read at runtime by anything — the live setting is UI state on GitHub.com — but version-controlled so it is reviewable and attributable to a commit. See "MCP server for agents". |
 | `.vscode/mcp.json`, `.copilot/mcp-config.json` | The same server for VS Code and Copilot CLI, in those clients' schemas. Kept in agreement with the canonical config by `scripts/assert-mcp-config.mjs`. |
 | `.github/copilot-instructions.md` | Repository instructions for coding agents: query the MCP rather than grepping the corpus, report MCP defects instead of routing around them, and honor this repository's evidence and pin discipline. |
@@ -383,13 +391,13 @@ regardless of when the script is actually executed.
 This script:
 
 1. Clones `mbeacom/adrkit` and checks out the pinned commit
-   `e66b43dd87d49648a7b28630fa9ecfff65225f2e` into a temporary directory
+   `0bd7200bbbe98969f6ce978e5e8f44af45b1f866` into a temporary directory
    (never a branch or tag).
 2. Installs dependencies with `bun install --frozen-lockfile` using
    **Bun 1.3.14**.
 3. Builds the workspace with `bun run build`.
 4. Records the binary's self-reported version (`adr --version`, currently
-   `0.9.0`) alongside the pinned SHA, and fails if it exits non-zero or
+   `0.10.0`) alongside the pinned SHA, and fails if it exits non-zero or
    prints nothing. Before `bbe63e01` this was impossible — `adr --version`
    was an unknown command that exited 2
    ([mbeacom/adrkit#42](https://github.com/mbeacom/adrkit/issues/42)) — so
@@ -397,9 +405,9 @@ This script:
    does **not** assert the literal version string: a legitimate upstream
    version bump should not break this repository's CI, whereas losing
    `--version` entirely should. That design has now paid off twice — the
-   version moved `0.2.0` → `0.4.0` → `0.6.0` → `0.8.0` → `0.9.0`, and the
-   check passed unchanged each time, recording the new value without any edit
-   to the assertion.
+   version moved `0.2.0` → `0.4.0` → `0.6.0` → `0.8.0` → `0.9.0` →
+   `0.10.0`, and the check passed unchanged each time, recording the new value
+   without any edit to the assertion.
 5. Runs:
    ```bash
    adr queue --dir docs/adr --as-of 2026-07-21 --format json
@@ -472,7 +480,7 @@ version number is a *name*, and the pin discipline in
 close that gap:
 
 1. **The tarball is content-pinned.** `scripts/validate-mcp.sh` records the
-   registry's `sha512` integrity for `@adrkit/mcp@0.9.0` and verifies the
+   registry's `sha512` integrity for `@adrkit/mcp@0.10.0` and verifies the
    downloaded tarball against it before anything else happens. This is the npm
    analogue of `ADRKIT_EXT_SHA256` in the Spec Kit workflow.
 
@@ -485,8 +493,8 @@ close that gap:
    IDENTICAL
    ```
 
-   where `package/` is the extracted `@adrkit/mcp@0.9.0` tarball and `fromgit/`
-   is `git archive e66b43dd87d49648a7b28630fa9ecfff65225f2e packages/mcp/src`.
+   where `package/` is the extracted `@adrkit/mcp@0.10.0` tarball and `fromgit/`
+   is `git archive 0bd7200bbbe98969f6ce978e5e8f44af45b1f866 packages/mcp/src`.
 
    This is the assertion that licenses using npm for MCP at all. Without it,
    "the MCP server agents use matches the adrkit commit this repository pins"
@@ -583,7 +591,7 @@ Because the pin now appears in that workflow as well as in
 carries the same version and integrity, uses no non-exact spec, and mentions no
 other version. The sweep looks for the version in *both* forms the file uses —
 the npm spec and the packed tarball filename — because
-the filename is `adrkit-mcp-0.9.0.tgz`, where the version is not adjacent to the
+the filename is `adrkit-mcp-0.10.0.tgz`, where the version is not adjacent to the
 package spec. A single pattern anchored on the package name missed it, and a
 negative test caught that the check was passing a case it claimed to catch;
 `SETUP-SWEEP-NONVACUOUS` now additionally asserts both forms are present, so the
@@ -621,7 +629,7 @@ pin — all 56 assertions pass:
 
 | Assertion group | What is asserted |
 |---|---|
-| `MCP-1`–`MCP-2` | The server identifies as `@adrkit/mcp` and reports **0.9.0**. This is a consistency check, not provenance — provenance comes from having executed the sha512-verified install. |
+| `MCP-1`–`MCP-2` | The server identifies as `@adrkit/mcp` and reports **0.10.0**. This is a consistency check, not provenance — provenance comes from having executed the sha512-verified install. |
 | `MCP-3`–`MCP-5` | Exactly the four tools, every one annotated `readOnlyHint: true` and `openWorldHint: false`. These are *declarations*, not an enforced sandbox: they are what a client relies on when deciding to invoke autonomously, so a change to them is a change to that basis. Enforcement is not asserted here. |
 | `MCP-6`–`MCP-9` | `src/payments/api/handler.ts` resolves to `governing: 0001, 0002`, `activeProposals: 0014`, `history: []` — the same status-aware buckets `adr check` and the CI Action produce for that path. |
 | `MCP-10`–`MCP-12` | `corpusHealth` reports 15 records, 0 excluded, fingerprint `1664c5af…4bd936`. The fingerprint is asserted so an accidental corpus edit fails loudly here instead of silently shifting every expectation below it. |
@@ -717,7 +725,7 @@ protect and confirming the check went red.
 (`workflow_dispatch`) workflow with two steps:
 
 1. `id: queue` runs the packaged
-   `mbeacom/adrkit/packages/ci/queue@e66b43dd87d49648a7b28630fa9ecfff65225f2e`
+   `mbeacom/adrkit/packages/ci/queue@0bd7200bbbe98969f6ce978e5e8f44af45b1f866`
    Action against `docs/adr`, producing an `issue-number` output.
 2. A verification step runs `scripts/verify-managed-queue-issue.sh` with
    `GH_TOKEN: ${{ github.token }}` and
@@ -827,7 +835,7 @@ the repin.
 ### Live dispatch under the `c3dff3a7` pin
 
 > **Superseded as the most recent dispatch.** `arb-queue.yml` has since been
-> re-dispatched at the current `e66b43dd` pin — run
+> re-dispatched at the then-current `e66b43dd` pin — run
 > [`32784931152`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/32784931152),
 > conclusion `success`, every self-verification assertion passing. See
 > [Live dispatch at `e66b43dd`](#live-dispatch-at-e66b43dd-adrkit-v090). This section is
@@ -1080,7 +1088,7 @@ missing scope; that would make any observed failure ambiguous between
    `{number, state, title, updatedAt, bodySha256}`.
 2. **Run the Action** (`continue-on-error: true`) against
    `dir: fixtures/fail-closed-invalid-corpus-dir` — the same pinned
-   `mbeacom/adrkit/packages/ci/queue@e66b43dd87d49648a7b28630fa9ecfff65225f2e`
+   `mbeacom/adrkit/packages/ci/queue@0bd7200bbbe98969f6ce978e5e8f44af45b1f866`
    used by `arb-queue.yml`, pointed at the invalid fixture instead of
    `docs/adr`.
 3. **Snapshot after** — the same script, run again.
@@ -1110,17 +1118,18 @@ the existing `test-assert-managed-issue-body.sh`.
 ### Expected vs. observed (most recent live dispatch)
 
 > **This table is evidence about the `c3dff3a7` pin, not the current one.** The
-> repository now pins `e66b43dd` (adrkit `v0.9.0`). The workflow was last
+> repository now pins `0bd7200b` (adrkit `v0.10.0`). The workflow was last
 > re-dispatched live at `c5dc677f` (adrkit `v0.6.0`) — run
 > [`31553919618`](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/31553919618),
 > conclusion `success`, with the same `outcome=failure`, empty `issue-number`,
 > and byte-identical before/after snapshots (`7b725a02…`). See
 > [Live evidence at this pin](#live-evidence-at-this-pin). **It has not been
-> re-dispatched at `e3155eaa`, `d9ce9e18`, or `e66b43dd`**. At the current repin,
+> re-dispatched at `e3155eaa`, `d9ce9e18`, `e66b43dd`, or `0bd7200b`**. At the
+> current repin,
 > the queue Action's `action.yml`, source entrypoint, and executable
-> `dist/queue-action.js` are byte-identical to `d9ce9e18`, so the `c5dc677f`
+> `dist/queue-action.js` are byte-identical to `e66b43dd`, so the `c5dc677f`
 > result is carried forward rather than reproduced — see
-> [What was not exercised at this pin](#what-was-not-exercised-at-this-pin-e66b43dd).
+> [What was not exercised at this pin](#what-was-not-exercised-at-this-pin-0bd7200b).
 > The table below is retained as the `c3dff3a7` record.
 
 | Field | Expected | Observed |
@@ -1246,7 +1255,7 @@ the governed corpus here was never mutated.
 | `adr migrate --from madr` | One-way and non-destructive; `--dry-run` leaves files byte-identical; re-running reports `unchanged` (idempotent). At `bbe63e01` it also parses MADR 2.x and Nygard dialects, warns when a written record would be undiscoverable, and offers opt-in `--rename` — see the resolved defects 2 and 3 below. |
 | `adr evaluate` | All eleven Pass 0 rules run offline. `0015` (`one-way-door`) yields `routing: escalate [one-way-door]`; `0014` yields `expiry-sane: fail (info) — expiry-sane.past-or-equal`, consistent with the queue's `overdue` state for the same record. Absent snapshot backing reports `inert`, never a fabricated pass/fail. |
 | `adr queue` | Covered in detail above. Byte-identical at `bbe63e01`. |
-| `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). At that pin `adr --version` printed `0.2.0`; it printed `0.4.0` at `c3dff3a7`, `0.6.0` at `c5dc677f`, `0.8.0` at `d9ce9e18`, and prints `0.9.0` at the current `e66b43dd` pin. Recorded by `scripts/validate-queue.sh` on every run, without asserting the literal string. |
+| `adr --help` / `--version` | Added at `bbe63e01` (resolved defect 4). At that pin `adr --version` printed `0.2.0`; it printed `0.4.0` at `c3dff3a7`, `0.6.0` at `c5dc677f`, `0.8.0` at `d9ce9e18`, `0.9.0` at `e66b43dd`, and prints `0.10.0` at the current `0bd7200b` pin. Recorded by `scripts/validate-queue.sh` on every run, without asserting the literal string. |
 | `@adrkit/mcp` | **Original `896391cc` run only, not re-covered at `bbe63e01` except as noted.** All four tools (`search_decisions`, `get_decision`, `get_decision_context`, `list_superseded`) exercised over stdio JSON-RPC across 22 calls — happy paths, not-found, pagination cursors, and invalid input. No functional defects. Path arguments reject absolute and `..` paths before touching the filesystem. Read-only/local-only boundary held: no write/network/`child_process` imports in the server or the core functions it calls; `lsof` on the running process showed zero network sockets; corpus mtimes and `git status` were unchanged after the run. At `bbe63e01`, **only `get_decision_context` was re-driven** — see [MCP re-coverage](#mcp-re-coverage-get_decision_context-only). |
 | Determinism | `adr queue --format json` and `adr evaluate --json` each produced a single distinct SHA-256 across three consecutive runs. |
 
@@ -1494,6 +1503,81 @@ The rewrite touched `README.md` only —
 `git diff 3bfe15a ce63d8d -- .github/workflows scripts/` is empty — so the two
 sets of runs executed identical pins and identical assertions, which is
 consistent with them producing identical evidence.
+
+---
+
+## Re-validation against `0bd7200b` (adrkit v0.10.0) (2026-08-25)
+
+The repin from `e66b43dd` to `0bd7200b` spans six upstream commits. The release
+focuses on CLI help, mistake recovery, shell completions, and TTY-aware
+presentation. It does not change `packages/ci/**` or the queue-core source this
+repository depends on, but it does change the CLI wrapper through which the
+local queue validation runs.
+
+**Scope caveat, stated up front.** Six validation surfaces were run locally. No
+GitHub workflow was dispatched, no pull-request checks are claimed, and the
+hosted cloud-agent MCP setting cannot be read back from this repository. The
+task reported that hosted setting as already updated; this run updated and
+validated the version-controlled canonical config but did not independently
+observe the live UI state.
+
+### What changed across `e66b43dd` → `0bd7200b`
+
+The GitHub comparison API reports 45 changed files, 3,145 additions, and 341
+deletions. The surfaces relevant here break down as:
+
+| File | Comparison | Relevance |
+|------|------------|-----------|
+| `packages/ci/**` | no changed files | Both queue Action workflows move to the new immutable commit, but their upstream implementation is unchanged |
+| `packages/ci/queue/action.yml` | byte-identical (Git blob `57977f7f…`) | Queue Action metadata and inputs/outputs unchanged |
+| `packages/ci/src/queue-action-entrypoint.ts` | byte-identical (Git blob `1f8ec39e…`) | Managed-issue orchestration entrypoint unchanged |
+| `packages/ci/dist/queue-action.js` | byte-identical (Git blob `04b63e4b…`) | Executable queue Action bundle unchanged |
+| `packages/core/src/{queue/as-of.ts,check/index.ts}` | byte-identical (Git blobs `b88c6024…`, `ce64e5d5…`) | Fixed-date resolution and governed-path matching unchanged |
+| `packages/cli/src/queue.ts` | +69 −28 | Adds shared help/error recovery and presentation handling around the same core report builder |
+| `packages/cli/src/index.ts` plus new CLI modules | +383 −182 in `index.ts`; new registry, completion, error, presentation, and recovery modules | The release's main behavior change; most of it is outside this repository's queue JSON contract |
+| `packages/mcp/src/server.ts` | +1 −1 | Server version moves `0.9.0` → `0.10.0` |
+| `docs/adr/0028`, `docs/adr/0031` | status/evidence updates | Upstream decision-corpus changes do not alter this repository's corpus |
+
+The unscoped `adrkit` package still returns `E404`. Registry metadata for the
+published `@adrkit/cli@0.10.0` package exposes both `adr` and `adrkit` aliases;
+the Spec Kit validation below installed the pinned published CLI and accepted
+its reported version.
+
+### What was run, and what it reported
+
+| Validation | Observed result at `0bd7200b` |
+|------------|--------------------------------|
+| `scripts/validate-queue.sh` | Pass. `adr --version` reports `0.10.0`; 15 records lint with 0 errors and 0 warnings; all three tiers and the fixed `overdue`/`due`/`within-sla` states reproduce. |
+| `scripts/validate-mcp.sh` | Pass. The registry `sha512` matched `@adrkit/mcp@0.10.0`, package `src/` was byte-identical to the pinned commit, the 28 config and 28 stdio JSON-RPC assertions passed, and `docs/adr` ended byte-identical. |
+| `scripts/validate-markers.sh --self-test` | Pass, 26 assertions across 8 fixtures; 17 perturbations falsified 22 assertions, with the remaining 4 non-falsifiable by construction. |
+| `scripts/validate-badge-reports.sh` | Pass, 5 assertions. Both committed reports are byte-identical to regeneration at the new pin, so no `.adrkit/*.json` edit was needed. |
+| `scripts/test-assert-managed-issue-body.sh` + `scripts/test-assert-no-issue-mutation.sh` | Pass. Every good fixture passed and every single-invariant mutation fixture was rejected. |
+| `scripts/validate-spec-kit-extension.sh` | Pass, 49 assertions and zero failures at both Spec Kit `0.14.4` and `0.15.1`, using `@adrkit/cli@0.10.0`; both mutation checks passed. |
+
+The first direct Spec Kit runs were made from the intentionally dirty repin
+worktree. They reached all 49 assertions and failed only `MUT-2`, correctly
+reporting the uncommitted pin edits. They are not counted as passing
+validation. The passing runs used a temporary committed snapshot of the exact
+diff and the tag, URL, digest, extension version, and CLI version from
+`spec-kit-extension.yml`.
+
+### What was *not* exercised at this pin (`0bd7200b`)
+
+- **Neither queue Action workflow was dispatched.** The managed-issue and
+  fail-closed live evidence remains at older pins. The upstream Action metadata,
+  source entrypoint, and executable bundle are byte-identical to `e66b43dd`,
+  but that is source identity, not a new live observation.
+- **No pull-request or `main` CI run is claimed.** The results above are local
+  observations only.
+- **The hosted cloud-agent MCP setting was not observed.** Its UI state has no
+  repository read API; only the checked-in canonical config and its package were
+  validated here.
+- **The new CLI presentation surface was not exhaustively dogfooded.** The run
+  exercised `--version`, lint, deterministic queue JSON/Markdown, and the Spec
+  Kit consumer paths. It did not separately test shell completion generation,
+  typo suggestions, or interactive TTY color behavior.
+- **Dependency closures remain only behaviorally covered.** The top-level MCP
+  tarball is content-pinned; npm-resolved dependencies are not.
 
 ---
 
@@ -2803,7 +2887,7 @@ diff touches those paths, but that is an inference from the diff, not an
 observation — do not read the "What works" table's `@adrkit/mcp` row as
 re-verified at the current pin.
 
-At the current `e66b43dd` pin the MCP position is different and better: the
+At the current `0bd7200b` pin the MCP position is different and better: the
 56-assertion `scripts/validate-mcp.sh` harness now drives the published server
 on every pull request, so `get_decision_context`, `search_decisions`,
 `get_decision`, `list_superseded`, the read-only annotations, and the
