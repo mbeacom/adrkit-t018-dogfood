@@ -38,18 +38,18 @@ set -euo pipefail
 # without a version resolves at launch, which would mean every agent session in
 # this repository ran against whatever was current that day, with no way to tell
 # afterwards which code produced a given answer.
-ADRKIT_MCP_VERSION="0.11.0"
+ADRKIT_MCP_VERSION="0.12.0"
 
 # The npm registry's own integrity for that exact tarball. This is the npm
 # analogue of ADRKIT_EXT_SHA256 in .github/workflows/spec-kit-extension.yml: a
 # version number alone is a name, and names can in principle be re-pointed, so
 # what is verified is the content.
-ADRKIT_MCP_SHA512="sha512-dGCqNhKpQTDG8dF1FtNXEQAGtk4uMjjvsug/PexoJExqEUqllu/tzFjSWvVSQ1smVLZzo+qMCokkvf3jdBI/NQ=="
+ADRKIT_MCP_SHA512="sha512-+7cyLPcBUMiDzSRIfNvBogkNOzRh9SJLaGYbvJFr14PB/qEiFXvSN2Uucuv4Pr/ZJXJhQPUMHnU/MzFWK0Gbag=="
 
 # The adrkit commit this repository pins everywhere else -- the commit behind the
-# v0.11.0 release tag. Kept in sync with scripts/validate-queue.sh; step 3 is what
+# v0.12.0 release tag. Kept in sync with scripts/validate-queue.sh; step 3 is what
 # proves the npm package above and this commit are the same code.
-ADRKIT_REF="9a4bdf89680b1a5b358fba0f2c8c88b9f5ac7877"
+ADRKIT_REF="2f19524f07938f1a7841b9f58bbcd1313e60a4dc"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 
 # From @adrkit/mcp's package.json "engines".
@@ -147,7 +147,7 @@ echo ""
 echo "==> Installing the verified tarball (with its dependency closure)"
 # Installed from the local, integrity-verified file rather than by name, so the
 # package that runs is provably the tarball checked above. `npx -y
-# @adrkit/mcp@0.11.0` would re-resolve by name and could execute a cached or
+# @adrkit/mcp@0.12.0` would re-resolve by name and could execute a cached or
 # hoisted same-version copy, which a version string cannot distinguish.
 #
 # Scope: this pins @adrkit/mcp itself. Its dependencies (@adrkit/core,
