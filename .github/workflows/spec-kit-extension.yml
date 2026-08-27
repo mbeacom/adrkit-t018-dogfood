@@ -37,7 +37,7 @@ env:
   ADRKIT_EXT_URL: "https://github.com/mbeacom/adrkit/releases/download/spec-kit-v0.1.3/adrkit.zip"
   ADRKIT_EXT_SHA256: "bab0cecd273983424fb33dfabd05067551e154920db1c0e7ac1d2a513d387451"
   # The published CLI surface a real consumer installs.
-  ADRKIT_CLI_VERSION: "0.11.0"
+  ADRKIT_CLI_VERSION: "0.12.0"
 
 jobs:
   validate:
