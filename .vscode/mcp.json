@@ -5,7 +5,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@adrkit/mcp@0.12.0",
+        "@adrkit/mcp@0.13.0",
         "--cwd",
         "${workspaceFolder}",
         "--dir",

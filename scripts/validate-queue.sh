@@ -24,7 +24,8 @@
 set -euo pipefail
 
 # Pin: exact adrkit commit dogfooded by this repository. This is the commit
-# behind adrkit's `v0.12.0` release tag. It supersedes
+# behind adrkit's `v0.13.0` release tag. It supersedes
+# 2f19524f07938f1a7841b9f58bbcd1313e60a4dc (`v0.12.0`), which superseded
 # 9a4bdf89680b1a5b358fba0f2c8c88b9f5ac7877 (`v0.11.0`), which superseded
 # 0bd7200bbbe98969f6ce978e5e8f44af45b1f866 (`v0.10.0`), which superseded
 # e66b43dd87d49648a7b28630fa9ecfff65225f2e (`v0.9.0`), which superseded
@@ -35,13 +36,13 @@ set -euo pipefail
 # bbe63e017274f173dbb40eeaceccd17df346b32b, which in turn superseded
 # 896391cc385798f7f08c5694f70acaf0342789e9.
 #
-# The v0.12.0 release changes queue-kernel item findings, marker scan accounting,
-# and the governing-decisions Action's logs and comment rendering. The queue
-# Action bundle therefore differs from v0.11.0 even though its metadata and
-# queue entrypoint remain byte-identical.
+# The v0.13.0 release changes affects ordering, stale marker findings, and the
+# governing-decisions Action's published metadata and comment rendering. The
+# queue kernel, queue Action metadata, and queue Action bundle are byte-identical
+# to v0.12.0.
 #
 # That intended stability is re-verified rather than inferred. See README.md
-# ("Re-validation against `2f19524f`") for what was actually re-run and what
+# ("Re-validation against `3e40675e`") for what was actually re-run and what
 # was not.
 #
 # Do NOT change this to a branch name or tag — see README.md ("Pinned adrkit
@@ -49,7 +50,7 @@ set -euo pipefail
 # at this same commit; it is useful for DISCOVERING the current SHA, but
 # adopting it as the pin would destroy the immutability this repository exists
 # to demonstrate.
-ADRKIT_REF="2f19524f07938f1a7841b9f58bbcd1313e60a4dc"
+ADRKIT_REF="3e40675ed6f513d9712b1dccaa68034d649d1eb9"
 ADRKIT_REPO="${ADRKIT_REPO:-https://github.com/mbeacom/adrkit.git}"
 EXPECTED_BUN_VERSION="1.3.14"
 
