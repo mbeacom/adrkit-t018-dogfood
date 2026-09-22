@@ -29,7 +29,8 @@ isolated, not an external team or third party.
 | CI run — `adrkit as-of validation` (self-verifying, green) | [runs/35727968513](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727968513) |
 | CI run — `ADR governance` (`adr.yml`, now pinned to the same commit) | [runs/35727968312](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727968312) |
 | CI run — full check suite at this commit | [`gh pr checks 24`](https://github.com/mbeacom/adrkit-t018-dogfood/pull/24/checks): 7 passed, 0 failed |
-| Deliberately-broken run (this evidence's ADR-0016 falsification, see below) | [runs/35727726598](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727726598) (an earlier commit on this same PR, `f1e29796fa177ff5f222539ab3d7cd220664b319`) — `adrkit MCP validation` failed because the extended corpus changed values three hardcoded assertions had not been updated for; fixed in the next commit and shown green above |
+| Deliberately-broken run — `as-of-validation.yml` itself | [runs/35728825424](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35728825424), dispatched on a throwaway branch (`tmp/break-as-of-ci`, deleted after capture, never merged) with `0017`'s `date` shifted from `2026-02-01` to `2026-01-01`. Failed exactly as required: `BOUND-3` ("0016 is still governing the day before handover") failed, `assert-as-of.mjs` exited 1, and the job failed — proving the workflow's exit-code wiring, not just the assertions in isolation. |
+| Deliberately-broken run — a different job, same PR | [runs/35727726598](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727726598) (an earlier commit on this same PR, `f1e29796fa177ff5f222539ab3d7cd220664b319`) — `adrkit MCP validation` failed because the extended corpus changed values three hardcoded assertions had not been updated for; fixed in the next commit and shown green above. A second, independent instance of "observed failing," not a substitute for the row above. |
 
 ## Tool versions / environment
 
@@ -221,14 +222,26 @@ scenarios, and a handful of corpus invariants — `BOUND-1`/`1b`/`5`/`6`,
 attempted against them) are not claimed as self-test-falsified. That is
 stated plainly in the script's own output and is not hidden.
 
-The deliberately-broken CI run cited above
-([runs/35727726598](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727726598))
-is a second, independent instance of "observed failing": `assert-mcp-surface.mjs`
-hardcoded a record count, a corpus fingerprint, and "no superseded records"
-against the prior 15-record corpus. Adding the ADR-0039 fixtures broke all
-three, CI caught it before merge, and the fix (updating the hardcoded
-expectations to match the real, extended corpus — not loosening the
-assertions) is the next commit on the same PR, shown green above.
+The self-test above proves the *assertions* fail under perturbation, run
+locally and in the same CI job that also asserts them — which leaves the
+workflow's own exit-code wiring (assertion failure → job failure → PR check
+red) unproven by that alone. A dedicated deliberately-broken run closes that
+gap directly: `as-of-validation.yml` was dispatched
+([runs/35728825424](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35728825424))
+against a throwaway branch with `0017`'s `date` shifted by one month. `BOUND-3`
+failed, `assert-as-of.mjs` exited 1, and the job failed — end to end, not just
+in isolation. The branch was deleted after capturing the run and was never
+merged.
+
+A second, independent instance of "observed failing" — in a different job,
+caught incidentally rather than deliberately induced — is the earlier commit
+on this PR cited above ([runs/35727726598](https://github.com/mbeacom/adrkit-t018-dogfood/actions/runs/35727726598)):
+`assert-mcp-surface.mjs` hardcoded a record count, a corpus fingerprint, and
+"no superseded records" against the prior 15-record corpus. Adding the
+ADR-0039 fixtures broke all three, CI caught it before merge, and the fix
+(updating the hardcoded expectations to match the real, extended corpus — not
+loosening the assertions) is the next commit on the same PR, shown green
+above.
 
 ## Reproducibility
 
