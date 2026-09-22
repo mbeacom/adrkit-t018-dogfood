@@ -186,6 +186,41 @@ review, and no way to tell after the fact which code produced a given piece of
 evidence. Discovery and pinning are different jobs. Use `v0` for the first and
 a 40-character SHA for the second.
 
+### Two adrkit pins in this repository
+
+`scripts/validate-as-of.sh` and `.github/workflows/as-of-validation.yml` pin a
+**different, newer** commit than the one above:
+
+```
+4886dd6bb127d6aca57804a71d1c4b8548424d3b
+```
+
+This is the commit behind adrkit's **`v0.14.0`** release tag, verified the
+same way as `3e40675e` above:
+
+```console
+$ gh api repos/mbeacom/adrkit/git/ref/tags/v0.14.0 --jq '.object.type, .object.sha'
+tag
+a281dcb453ba95d1065dc0a7e7cc281357493aa8
+$ gh api repos/mbeacom/adrkit/git/tags/a281dcb453ba95d1065dc0a7e7cc281357493aa8 --jq '.object.sha'
+4886dd6bb127d6aca57804a71d1c4b8548424d3b
+```
+
+`adr explain --as-of` ([ADR-0039](./docs/adr/0039-derive-a-valid-time-window-from-date-and-supersession-and-resolve-a-git-ref-at-th.md))
+does not exist at `3e40675e` (v0.13.0); it shipped in v0.14.0. Repinning
+`validate-queue.sh`/`validate-markers.sh`/`validate-mcp.sh`/
+`validate-badge-reports.sh`/`adr.yml`/`arb-queue.yml`/`arb-queue-fail-closed.yml`
+to v0.14.0 is out of scope for the as-of evidence this repository adds here —
+those scripts pin what they were written against and are re-pinned on their
+own schedule (see the repin history above). `validate-as-of.sh` therefore does
+**not** join the `ADRKIT_REF` cross-check those five files share; it carries
+its own pin, checked directly against `adr --version` reporting `0.14.0`.
+`.github/workflows/adr.yml` is the one exception: it now pins the same
+`4886dd6` commit as `validate-as-of.sh`, since fixing its previous
+`@main` (unpinned, moving) reference was in scope regardless of which SHA it
+landed on. A future single-pin migration across every script is tracked as
+follow-up, not done here.
+
 ### What changed across `c3dff3a7` → `c5dc677f`
 
 **Action source changed.** This is a stronger claim than the previous repin had
@@ -389,6 +424,12 @@ previously read `checked: 3 governing, …`.
 | `scripts/assert-markers.mjs` | Pure, network-free assertions over those captures: 26 checks across marker resolution, the negative cases, the unresolvable findings, the measured truncation extent, and the batch `markerScan`. |
 | `.adrkit/lint.json`, `.adrkit/queue.json` | Verbatim `adr lint --json` and `adr queue --format json` output for this corpus, committed as the source the README badges read. Generated at the pinned commit with the same fixed `--as-of` the queue evidence uses. Not hand-edited — regenerate rather than patch. See "Corpus badges". |
 | `scripts/validate-badge-reports.sh` | Regenerates both badge reports at the pinned commit and requires them to be byte-identical to the committed files, then asserts the two fields the badge URLs dereference are integers and the lint report is finding-free (5 assertions). Cross-checks both the adrkit pin and the `--as-of` date against `validate-queue.sh`. |
+| `docs/adr/0016`–`0022` | ADR-0039 rung-2 corpus: a supersession pair, a three-record chain, a deprecated record, a rejected record, and a deliberately inverted-date pair, under `src/temporal/**`. See "As-of validation". |
+| `src/temporal/pool/worker-pool.ts` | Declares `@adr 0016`, the marker-suppression fixture: stale present-tense, accurate (suppressed) `--as-of` a date inside `0016`'s window, stale again outside it. |
+| `src/temporal/legacy/restart.ts`, `src/temporal/inverted/scheduler.ts` | Path-only governance fixtures for the deprecated/rejected pair and the inverted pair, respectively. Carry no `@adr` marker. |
+| `.github/workflows/as-of-validation.yml` | As-of validation: runs `scripts/validate-as-of.sh --self-test` on PR, on `main`, weekly, and on demand. |
+| `scripts/validate-as-of.sh` | Captures `adr explain --json` for every as-of scenario against this repository's real corpus, builds an isolated throwaway git repository (pinned committer dates) for the git-ref and outside-git-repo scenarios, captures the four fail-closed scenarios, and delegates every correctness decision to `assert-as-of.mjs`. `--self-test` perturbs the corpus fixtures and requires the matching assertions to fail. Pins adrkit's v0.14.0 commit directly rather than joining the `ADRKIT_REF` cross-check the other scripts share — see "Two adrkit pins in this repository". |
+| `scripts/assert-as-of.mjs` | Pure, network-free assertions over those captures: 51 checks across the half-open window boundary, the immediate-vs-terminal successor rule, `deprecated`/`rejected` standings, the inverted-window guard, marker suppression, `bucket`/`standing` disagreement, JSON shape, git-ref resolution, and the four fail-closed scenarios. |
 
 ## The Phase 6 ARB queue corpus
 
@@ -406,6 +447,52 @@ combination on `0015` that resolves to `2026-07-21`) are hardcoded, not
 computed from the current date. Re-running the validation with
 `--as-of 2026-07-21` reproduces byte-identical `overdue`/`due` states forever,
 regardless of when the script is actually executed.
+
+## As-of validation
+
+`docs/adr/0016`–`0022` extend the corpus specifically to make
+[ADR-0039](./docs/adr/0039-derive-a-valid-time-window-from-date-and-supersession-and-resolve-a-git-ref-at-th.md)'s
+temporal rules observable. The original T018 corpus (`0001`–`0015`) cannot
+exercise them: every record is `accepted` or `proposed`, so an `--as-of` run
+against it only ever answers "accepted record governs" or "record did not
+exist yet" — never the window *closing*, which is the feature.
+
+| ID(s) | Shape | Makes observable |
+|---|---|---|
+| `0016` → `0017` | Supersession pair, `2025-11-01` → `2026-02-01`, both `affects: src/temporal/pool/**` | The half-open window boundary: `0016` is `notYetRecorded` on `2025-10-31`, `governing` from `2025-11-01` through `2026-01-31`, and `history` on the `2026-02-01` handover day, which belongs to `0017` alone. |
+| `0017` → `0018` | `0017` also superseded, by `0018` (`2026-05-01`) | The **immediate, not terminal**, successor rule: as-of a date deep into `0018`'s tenure, `0016`'s window is still reported closed by `0017`, never by `0018`. |
+| `0019` | `deprecated`, no successor (the schema forbids one outside `status: superseded`) | `undetermined` standing plus a `temporal-window-undetermined` finding — never guessed as governing or history. |
+| `0020` | `rejected` | `history` on every date on or after its own `date` — it was never in force at any time. |
+| `0021` → `0022` (inverted) | `0021` superseded by `0022`, but `0022` is dated **before** `0021` | `adr lint` passes this pair with zero findings — a cross-record date-ordering constraint is not schema-expressible — so ADR-0039's kernel is the only layer that catches it: `0021` is never `governing` on any date, carries a `temporal-window-inverted` warning, and renders as "no in-force interval", never as `in force <opens> → <closes>`. |
+| `src/temporal/pool/worker-pool.ts` | Source file declaring `@adr 0016` | Marker staleness judged against the date being asked about: `stale-marker` fires present-tense (`0016` is superseded today), is suppressed `--as-of` a date inside `0016`'s own window, and fires again outside it. |
+
+`scripts/validate-as-of.sh` also builds an isolated, throwaway git
+repository — never this repository's own history or tag namespace — with a
+pinned `GIT_COMMITTER_DATE`, to assert `--as-of <ref>` resolves via the
+commit's **committer** date and that a tag literally named like a date
+(`2026-03-01`) resolves through the date grammar first, never as that tag.
+
+Four fail-closed scenarios are captured directly against this repository
+(`--as-of 2026-02-30`, a timezone-less datetime, an unresolvable ref, and a
+ref-shaped value outside any git repository): each must exit `2`, print
+nothing to stdout, and leave `git status --porcelain` unchanged. All 51
+assertions live in `scripts/assert-as-of.mjs`; `--self-test` perturbs six
+independent properties of the corpus/marker fixtures in a throwaway copy and
+requires exactly the dependent assertions to fail, so an assertion that
+silently stopped being enforced upstream shows up as a vacuous pass rather
+than a green run (ADR-0016). Assertions tied to JSON shape, git-ref
+resolution, and the fail-closed harness are fixed by construction rather than
+by corpus content and are not claimed as self-test-falsified; see the comment
+above `PERTURBATIONS` in the script for the full accounting.
+
+This is **rung 2** of [ADR-0014](./docs/adr/0014-stage-phase-landing-evidence-across-a-three-rung-validation-ladder.md):
+maintainer-owned isolated reference-repository validation. It is **not**
+rung-3 external validation, and the fixture corpus's mix of statuses
+(including one `deprecated` and one `rejected` record) is chosen to exercise
+the temporal rules, not sampled from a real project — its `undetermined`
+share says nothing about how often real corpora deprecate versus supersede.
+See the [evidence index](./docs/adr-0039-as-of-evidence.md) for the full
+expected-vs-observed table, tool versions, and reviewer verdict.
 
 ## Running the validation locally or in CI
 

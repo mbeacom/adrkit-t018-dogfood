@@ -1,0 +1,57 @@
+name: adrkit as-of validation
+
+# Validates `adr explain --as-of <date|ref>` (ADR-0039) against this
+# repository's real corpus, extended with fixtures that make the temporal
+# rules observable: a supersession pair, a three-record chain, a deprecated
+# record, a rejected record, an inverted-date pair, and an inbound marker
+# whose staleness depends on the date being asked about. See ADR-0039 action
+# item 5 and README.md ("As-of validation").
+#
+# This is rung-2 evidence per ADR-0014 (maintainer-owned isolated
+# reference-repository validation): reproducible (pins adrkit's exact v0.14.0
+# commit), self-verifying (this workflow fails the run if observed behavior
+# diverges from expected), and fail-closed (asserts four consumer-facing
+# failure modes exit before any side effect and mutate nothing). It is not
+# rung-3 external validation.
+#
+# The `--self-test` pass is why this runs in CI rather than by hand: it
+# perturbs the fixtures in a throwaway copy and requires the matching
+# assertion to FAIL, so an assertion that silently stopped being enforced
+# upstream shows up here as a vacuous pass rather than as a green run
+# (ADR-0016).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+  schedule:
+    # Weekly, for the same reason marker-validation and mcp-validation run
+    # weekly: this asserts behavior of a pinned dependency, and a scheduled
+    # run separates "nobody touched this repository" from "the behavior
+    # still holds".
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-as-of:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this reference repository
+        uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # scripts/assert-as-of.mjs is plain ESM with no dependencies, but
+          # pinning the major keeps it off whatever the runner image ships.
+          node-version: "22"
+
+      - name: Validate as-of behavior, and prove each assertion fails when violated
+        run: ./scripts/validate-as-of.sh --self-test

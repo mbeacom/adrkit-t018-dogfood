@@ -16,6 +16,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: mbeacom/adrkit/packages/ci@main
+      - uses: mbeacom/adrkit/packages/ci@4886dd6bb127d6aca57804a71d1c4b8548424d3b
         with:
           dir: docs/adr
