@@ -61,15 +61,17 @@ const EXPECTED_GOVERNING = [
 ];
 const EXPECTED_ACTIVE_PROPOSALS = [['0014', 'proposed']];
 const EXPECTED_HISTORY = [];
-const EXPECTED_RECORD_COUNT = 15;
+const EXPECTED_RECORD_COUNT = 22;
 const EXPECTED_EXCLUDED_COUNT = 0;
 
 // A stable content fingerprint over the corpus. Asserted because it is the one
 // value that changes when any governed record changes, which makes an accidental
 // corpus edit fail loudly here rather than silently shifting every expectation
-// below it.
+// below it. Matches .adrkit/queue.json's corpusFingerprint (see
+// scripts/validate-badge-reports.sh) — both are computed the same way, over
+// the same corpus, and are kept in agreement by regenerating both together.
 const EXPECTED_FINGERPRINT =
-  '1664c5af7cb42038eb6087ab980499339e28a9f1d1be7e5a9095ce52414bd936';
+  '52a6d5d62532d9918f68bf352184cbf1b940acb596c39ceede7b3b2a1f890bdb';
 
 const TIMEOUT_MS = Number(process.env.ADRKIT_MCP_TIMEOUT_MS ?? 120_000);
 
@@ -341,7 +343,7 @@ async function main() {
 
   assert(
     'MCP-10',
-    'corpusHealth reports 15 records',
+    `corpusHealth reports ${EXPECTED_RECORD_COUNT} records`,
     EXPECTED_RECORD_COUNT,
     context.corpusHealth?.recordCount,
   );
@@ -406,9 +408,20 @@ async function main() {
     await client.request('tools/call', { name: 'list_superseded', arguments: {} }),
   );
   assert('MCP-17', 'list_superseded returns the entries branch', 'entries', superseded.payload.outcome);
-  // This corpus declares no supersession. Asserted rather than skipped so that a
-  // corpus change that introduces one is forced through this check.
-  assert('MCP-18', 'this corpus declares no superseded records', [], summarize(superseded.payload.items));
+  // The ADR-0039 as-of fixture corpus (docs/adr/0016-0022) declares three
+  // supersession edges: 0016->0017, 0017->0018, and the deliberately
+  // inverted 0021->0022. Asserted by exact value rather than just a count,
+  // so a fixture that silently loses or gains an edge is caught here too.
+  assert(
+    'MCP-18',
+    'this corpus declares exactly the three ADR-0039 fixture supersessions',
+    [
+      ['0016', 'superseded'],
+      ['0017', 'superseded'],
+      ['0021', 'superseded'],
+    ],
+    summarize(superseded.payload.items),
+  );
 
   const decision = structured(
     'get_decision',
