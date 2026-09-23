@@ -326,7 +326,10 @@ validated by a real user. ADR-0039 action item 5 is closed by this evidence;
 action items 6 and 7 (whether `adr check`/the Action should accept `--as-of`,
 and `%cI` vs. `%aI`) remain open and are unaffected by this work.
 
-**Reviewer verdict**: _Pending review by `@mbeacom`._ This evidence index
-records what was run and observed; it does not itself constitute the
-maintainer sign-off ADR-0014 requires. Update this line with the actual
-verdict and date once reviewed.
+**Reviewer verdict**: Accepted as ADR-0014 rung-2 evidence for ADR-0039
+action item 5. [mbeacom/adrkit-t018-dogfood#24](https://github.com/mbeacom/adrkit-t018-dogfood/pull/24)
+merged at `e9a2bf5226f540f7ea905ce18e06a813c2f4a27b` with all 7 CI checks
+green, including a dedicated deliberately-broken dispatch of
+`as-of-validation.yml` proving the workflow's own exit-code wiring. The
+scenario matrix, self-test falsification accounting, and limitations above
+were reviewed against that merged state. — `@mbeacom`, 2026-09-22.
